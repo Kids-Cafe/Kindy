@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Chat Test</title>
+        <style>
+            #status {
+                background: #FED;
+            }
+            #result {
+                background: #EEE;
+            }
+        </style>
+        <script>
+            // Helper function to build a valid 16-bit PCM WAV container
+            function encodeWAV(samples, sampleRate) {
+                const buffer = new ArrayBuffer(44 + samples.length * 2);
+                const view = new DataView(buffer);
+
+                /* RIFF identifier */
+                writeString(view, 0, 'RIFF');
+                /* file length */
+                view.setUint32(4, 36 + samples.length * 2, true);
+                /* RIFF type */
+                writeString(view, 8, 'WAVE');
+                /* format chunk identifier */
+                writeString(view, 12, 'fmt ');
+                /* format chunk length */
+                view.setUint32(16, 16, true);
+                /* sample format (raw PCM = 1) */
+                view.setUint16(20, 1, true);
+                /* channel count (1 = mono) */
+                view.setUint16(22, 1, true);
+                /* sample rate */
+                view.setUint32(24, sampleRate, true);
+                /* byte rate (sample rate * block align) */
+                view.setUint32(28, sampleRate * 2, true);
+                /* block align (channel count * bytes per sample) */
+                view.setUint16(32, 2, true);
+                /* bits per sample */
+                view.setUint16(34, 16, true);
+                /* data chunk identifier */
+                writeString(view, 36, 'data');
+                /* data chunk length */
+                view.setUint32(40, samples.length * 2, true);
+
+                // Float32 audio samples -> 16-bit Signed Integer PCM
+                let index = 44;
+                for (let i = 0; i < samples.length; i++) {
+                    const s = Math.max(-1, Math.min(1, samples[i]));
+                    view.setInt16(index, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                    index += 2;
+                }
+
+                return buffer;
+            }
+
+            function writeString(view, offset, string) {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
+            }
+
+            async function recordUntilSilence() {
+                const statusDiv = document.querySelector('#status');
+
+                const resultDiv = document.querySelector('#result')
+                if (!resultDiv) return
+                const resultBox = document.createElement('div')
+                resultDiv.appendChild(resultBox)
+
+                if (statusDiv) statusDiv.textContent = "Requesting microphone access...";
+
+                // --- CONFIGURATION PARAMETERS ---
+                const CONF_THRESHOLD = 0.025;     // Volume threshold (0.00 to 1.00). Lower = more sensitive to soft speech.
+                const CONF_SILENCE_MS = 1500;     // How long to wait (in milliseconds) before stopping after speech ends.
+                const CONF_MIN_RECORD_MS = 1000;  // Minimum recording time to avoid accidental immediate cutoffs.
+                // ---------------------------------
+
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                    // Force browser to downsample mic input to 16kHz
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                    const source = audioContext.createMediaStreamSource(stream);
+
+                    // Analyser node lets us look at the audio volume in real-time
+                    const analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+                    const bufferLength = analyser.frequencyBinCount;
+                    const dataArray = new Float32Array(bufferLength);
+
+                    // ScriptProcessor captures raw PCM chunks
+                    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+                    const audioChunks = [];
+
+                    processor.onaudioprocess = (e) => {
+                        const inputData = e.inputBuffer.getChannelData(0);
+                        audioChunks.push(new Float32Array(inputData));
+                    };
+
+                    // Connect the nodes together
+                    source.connect(analyser);
+                    analyser.connect(processor);
+                    processor.connect(audioContext.destination);
+
+                    if (statusDiv) statusDiv.textContent = "Listening... Start speaking.";
+
+                    let lastSpeakingTime = Date.now();
+                    let hasSpoken = false;
+                    const startTime = Date.now();
+
+                    // Check audio levels approximately 60 times a second using RequestAnimationFrame
+                    await new Promise((resolve) => {
+                        function checkAudio() {
+                            analyser.getFloatTimeDomainData(dataArray);
+
+                            // Calculate Root Mean Square (RMS) to find the volume level
+                            let sumSquares = 0;
+                            for (let i = 0; i < dataArray.length; i++) {
+                                sumSquares += dataArray[i] * dataArray[i];
+                            }
+                            const rms = Math.sqrt(sumSquares / dataArray.length);
+
+                            const now = Date.now();
+
+                            if (rms > CONF_THRESHOLD) {
+                                // Person is speaking
+                                lastSpeakingTime = now;
+                                hasSpoken = true;
+                                if (statusDiv) statusDiv.textContent = "Recording your voice...";
+                            } else {
+                                // It is quiet right now. Check if they have stopped long enough
+                                const durationRecorded = now - startTime;
+                                const silenceDuration = now - lastSpeakingTime;
+
+                                if (hasSpoken && silenceDuration > CONF_SILENCE_MS && durationRecorded > CONF_MIN_RECORD_MS) {
+                                    if (statusDiv) statusDiv.textContent = "Detected silence. Stopping...";
+                                    resolve(); // Break out of the promise loop to finalize and send
+                                    return;
+                                }
+                            }
+
+                            // Continue loop if not stopped
+                            requestAnimationFrame(checkAudio);
+                        }
+
+                        // Kick off the loop
+                        requestAnimationFrame(checkAudio);
+                    });
+
+                    // Clean up audio hardware
+                    stream.getTracks().forEach(track => track.stop());
+                    source.disconnect();
+                    analyser.disconnect();
+                    processor.disconnect();
+                    await audioContext.close();
+
+                    if (statusDiv) statusDiv.textContent = "Processing audio into 16kHz WAV...";
+
+                    // Flatten chunks
+                    const totalLength = audioChunks.reduce((acc, chunk) => acc + chunk.length, 0);
+                    const flattenedBuffer = new Float32Array(totalLength);
+                    let offset = 0;
+                    for (const chunk of audioChunks) {
+                        flattenedBuffer.set(chunk, offset);
+                        offset += chunk.length;
+                    }
+
+                    // Build WAV file container
+                    const wavBuffer = encodeWAV(flattenedBuffer, 16000);
+                    const audioBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+
+                    if (statusDiv) statusDiv.textContent = "Sending to server...";
+
+                    // Send to endpoint matching your initial form field layout
+                    const formData = new FormData();
+                    formData.append('file', audioBlob, 'recording.wav');
+
+                    const response = await fetch('./transcribe', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.text();
+                    if (statusDiv) statusDiv.textContent = 'Waiting for message...';
+                    resultBox.textContent = result
+                    await chat(result)
+                    if (statusDiv) statusDiv.textContent = 'Done';
+
+                } catch (error) {
+                    console.error("Transcription failed:", error);
+                    if (statusDiv) statusDiv.textContent = `Error: ${error.message}`;
+                }
+            }
+
+            function speak(text) {
+                if (!window.SpeechSynthesisUtterance || !window.speechSynthesis) {
+                    window.alert('이 브라우저는 TTS 기능을 지원하지 않습니다.')
+                }
+                window.speechSynthesis.cancel()
+                const speechMsg = new SpeechSynthesisUtterance()
+                speechMsg.rate = 1
+                speechMsg.pitch = 1
+                speechMsg.lang = 'ko-KR'
+                speechMsg.text = text
+                window.speechSynthesis.speak(speechMsg)
+            }
+
+            async function chat(text) {
+                const data = new FormData()
+                data.set('content', text)
+                const response = await fetch('./chat', {
+                    method: 'POST',
+                    body: data
+                })
+                const result = await response.json()
+
+                const resultDiv = document.querySelector('#result')
+                if (!resultDiv) return
+                const resultBox = document.createElement('div')
+                resultBox.textContent = result?.content
+                resultDiv.appendChild(resultBox)
+                if (result?.content) speak(result.content)
+            }
+
+            window.document.addEventListener('DOMContentLoaded', () => {
+                window.document.querySelector('#requestRecord')?.addEventListener('click', recordUntilSilence)
+                fetch('./chatHistory').then(response => response.json()).then(result => {
+                    const resultDiv = document.querySelector('#result')
+                    if (resultDiv) result?.messages?.forEach(message => {
+                        const resultBox = document.createElement('div')
+                        resultBox.textContent = message.content
+                        resultDiv.appendChild(resultBox)
+                    })
+                })
+            })
+        </script>
+    </head>
+    <body>
+        <h1>Chat Test</h1>
+        <hr />
+        <input type="button" id="requestRecord" value="Record" />
+        <pre id="status"></pre>
+        <pre id="result"></pre>
+    </body>
+</html>
