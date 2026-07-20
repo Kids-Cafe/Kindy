@@ -27,7 +27,7 @@ public class ChatService implements IChatService {
 
     @Override
     public ChatDTO createChat() {
-        return new ChatDTO(MODEL, new ArrayList<ChatDTO.ChatMessageDTO>(), false);
+        return new ChatDTO(MODEL, new ArrayList<>(), false);
     }
 
     @Override

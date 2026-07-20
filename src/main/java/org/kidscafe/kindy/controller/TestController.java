@@ -25,7 +25,7 @@ class TestController {
     private final String CLASS_NAME = this.getClass().getName();
     private void callLog(String name) { log.info("Calling {}.{}", CLASS_NAME, name); }
 
-    private final Map<String, ChatDTO> chatDTOMap = new HashMap<String, ChatDTO>();
+    private final Map<String, ChatDTO> chatDTOMap = new HashMap<>();
 
     @ResponseBody
     @PostMapping(value = "transcribe", produces = "text/plain")
