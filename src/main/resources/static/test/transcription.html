@@ -125,10 +125,132 @@
                 }
             }
 
+            async function recordUntilSilence() {
+                const resultDiv = document.querySelector('#result');
+                if (resultDiv) resultDiv.textContent = "Requesting microphone access...";
+
+                // --- CONFIGURATION PARAMETERS ---
+                const CONF_THRESHOLD = 0.015;     // Volume threshold (0.00 to 1.00). Lower = more sensitive to soft speech.
+                const CONF_SILENCE_MS = 1500;     // How long to wait (in milliseconds) before stopping after speech ends.
+                const CONF_MIN_RECORD_MS = 1000;  // Minimum recording time to avoid accidental immediate cutoffs.
+                // ---------------------------------
+
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                    // Force browser to downsample mic input to 16kHz
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                    const source = audioContext.createMediaStreamSource(stream);
+
+                    // Analyser node lets us look at the audio volume in real-time
+                    const analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+                    const bufferLength = analyser.frequencyBinCount;
+                    const dataArray = new Float32Array(bufferLength);
+
+                    // ScriptProcessor captures raw PCM chunks
+                    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+                    const audioChunks = [];
+
+                    processor.onaudioprocess = (e) => {
+                        const inputData = e.inputBuffer.getChannelData(0);
+                        audioChunks.push(new Float32Array(inputData));
+                    };
+
+                    // Connect the nodes together
+                    source.connect(analyser);
+                    analyser.connect(processor);
+                    processor.connect(audioContext.destination);
+
+                    if (resultDiv) resultDiv.textContent = "Listening... Start speaking.";
+
+                    let lastSpeakingTime = Date.now();
+                    let hasSpoken = false;
+                    const startTime = Date.now();
+
+                    // Check audio levels approximately 60 times a second using RequestAnimationFrame
+                    await new Promise((resolve) => {
+                        function checkAudio() {
+                            analyser.getFloatTimeDomainData(dataArray);
+
+                            // Calculate Root Mean Square (RMS) to find the volume level
+                            let sumSquares = 0;
+                            for (let i = 0; i < dataArray.length; i++) {
+                                sumSquares += dataArray[i] * dataArray[i];
+                            }
+                            const rms = Math.sqrt(sumSquares / dataArray.length);
+
+                            const now = Date.now();
+
+                            if (rms > CONF_THRESHOLD) {
+                                // Person is speaking
+                                lastSpeakingTime = now;
+                                hasSpoken = true;
+                                if (resultDiv) resultDiv.textContent = "Recording your voice...";
+                            } else {
+                                // It is quiet right now. Check if they have stopped long enough
+                                const durationRecorded = now - startTime;
+                                const silenceDuration = now - lastSpeakingTime;
+
+                                if (hasSpoken && silenceDuration > CONF_SILENCE_MS && durationRecorded > CONF_MIN_RECORD_MS) {
+                                    if (resultDiv) resultDiv.textContent = "Detected silence. Stopping...";
+                                    resolve(); // Break out of the promise loop to finalize and send
+                                    return;
+                                }
+                            }
+
+                            // Continue loop if not stopped
+                            requestAnimationFrame(checkAudio);
+                        }
+
+                        // Kick off the loop
+                        requestAnimationFrame(checkAudio);
+                    });
+
+                    // Clean up audio hardware
+                    stream.getTracks().forEach(track => track.stop());
+                    source.disconnect();
+                    analyser.disconnect();
+                    processor.disconnect();
+                    await audioContext.close();
+
+                    if (resultDiv) resultDiv.textContent = "Processing audio into 16kHz WAV...";
+
+                    // Flatten chunks
+                    const totalLength = audioChunks.reduce((acc, chunk) => acc + chunk.length, 0);
+                    const flattenedBuffer = new Float32Array(totalLength);
+                    let offset = 0;
+                    for (const chunk of audioChunks) {
+                        flattenedBuffer.set(chunk, offset);
+                        offset += chunk.length;
+                    }
+
+                    // Build WAV file container
+                    const wavBuffer = encodeWAV(flattenedBuffer, 16000);
+                    const audioBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+
+                    if (resultDiv) resultDiv.textContent = "Sending to server...";
+
+                    // Send to endpoint matching your initial form field layout
+                    const formData = new FormData();
+                    formData.append('file', audioBlob, 'recording.wav');
+
+                    const response = await fetch('./transcribe', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.text();
+                    if (resultDiv) resultDiv.textContent = result;
+
+                } catch (error) {
+                    console.error("Transcription failed:", error);
+                    if (resultDiv) resultDiv.textContent = `Error: ${error.message}`;
+                }
+            }
+
             window.document.addEventListener('DOMContentLoaded', () => {
-                window.document.querySelector('#requestRecord')?.addEventListener('click', () => {
-                    recordAndTranscribe(6000)
-                })
+                window.document.querySelector('#requestRecord')?.addEventListener('click', recordUntilSilence)
             })
 
             window.document.addEventListener('submit', event => {
