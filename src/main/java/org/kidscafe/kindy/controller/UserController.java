@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.MsgDTO;
+import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.service.IUserService;
 import org.kidscafe.kindy.util.CmmUtil;
@@ -16,43 +17,48 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Optional;
 
 @Slf4j
-@RequestMapping(value = "/user")
+@RequestMapping(value = "/api/user")
 @RequiredArgsConstructor
 @Controller
 public class UserController {
 
     private final IUserService userService;
+    private final EncryptUtil encryptUtil;
     private final String CLASS_NAME = this.getClass().getName();
     private void callLog(String name) { log.info("Calling {}.{}", CLASS_NAME, name); }
 
     @ResponseBody
-    @PostMapping(value = "getIdExists")
-    public UserDTO getIdExists(HttpServletRequest request) throws Exception {
+    @GetMapping(value = "getIdExists")
+    public ResultDTO getIdExists(HttpServletRequest request) throws Exception {
         this.callLog("getIdExists");
 
-        String id = CmmUtil.nvl(request.getParameter("id"));
+        String id = request.getParameter("id");
+
+        if (id == null) return ResultDTO.error("MISSING_PARAMETER");
 
         log.info("id: {}", id);
 
-        UserDTO pDTO = new UserDTO();
-        pDTO.setId(id);
+        UserDTO user = userService.getIdExists(UserDTO.fromId(id));
 
-        return Optional.ofNullable(userService.getUserIdExists(pDTO)).orElseGet(UserDTO::new);
+        return ResultDTO.success(user.isExists() ? "USER_FOUND" : "USER_NOT_FOUND", user);
     }
 
     @ResponseBody
-    @PostMapping(value = "getEmailExists")
-    public UserDTO getEmailExists(HttpServletRequest request) throws Exception {
+    @GetMapping(value = "getEmailExists")
+    public ResultDTO getEmailExists(HttpServletRequest request) throws Exception {
         this.callLog("getEmailExists");
 
-        String email = CmmUtil.nvl(request.getParameter("email"));
+        String email = request.getParameter("email");
+
+        if (email == null) return ResultDTO.error("MISSING_PARAMETER");
 
         log.info("email: {}", email);
 
         UserDTO pDTO = new UserDTO();
-        pDTO.setEmail(EncryptUtil.encAES128CBC(email));
+        pDTO.setEmail(encryptUtil.encAES128CBC(email));
+        UserDTO user = userService.getEmailExists(pDTO);
 
-        return Optional.ofNullable(userService.getEmailExists(pDTO)).orElseGet(UserDTO::new);
+        return ResultDTO.success(user.isExists() ? "USER_FOUND" : "USER_NOT_FOUND", user);
     }
 
     @ResponseBody
@@ -86,13 +92,13 @@ public class UserController {
             pDTO.setId(id);
             pDTO.setName(name);
 
-            pDTO.setPassword(EncryptUtil.encHashSHA256(password));
+            pDTO.setPassword(encryptUtil.encHashSHA256(password));
 
-            pDTO.setEmail(EncryptUtil.encAES128CBC(email));
+            pDTO.setEmail(encryptUtil.encAES128CBC(email));
             pDTO.setAddr1(addr1);
             pDTO.setAddr2(addr2);
 
-            res = userService.insertUserInfo(pDTO);
+            res = userService.insertUser(pDTO);
 
             log.info("회원가입 결과: " + res);
 
@@ -107,17 +113,15 @@ public class UserController {
 
             }
 
-        } catch(Exception e){
+        } catch(Exception e) {
 
             msg = "실패하였습니다.: " + e;
             log.info(e.toString());
 
-        } finally{
+        } finally {
             dto = new MsgDTO();
             dto.setResult(res);
             dto.setMsg(msg);
-
-            log.info("{}.insertUserInfo End!", this.getClass().getName());
         }
 
         return dto;
@@ -145,7 +149,7 @@ public class UserController {
 
             pDTO.setId(id);
 
-            pDTO.setPassword(EncryptUtil.encHashSHA256(password));
+            pDTO.setPassword(encryptUtil.encHashSHA256(password));
 
             UserDTO rDTO = userService.getLogin(pDTO);
 
@@ -189,9 +193,9 @@ public class UserController {
 
         UserDTO pDTO = new UserDTO();
         pDTO.setName(name);
-        pDTO.setEmail(EncryptUtil.encAES128CBC(email));
+        pDTO.setEmail(encryptUtil.encAES128CBC(email));
 
-        return Optional.ofNullable(userService.searchUserIdOrPasswordProc(pDTO))
+        return Optional.ofNullable(userService.searchIdOrPassword(pDTO))
                 .orElseGet(UserDTO::new);
     }
 
@@ -209,14 +213,14 @@ public class UserController {
         UserDTO pDTO = new UserDTO();
         pDTO.setId(id);
         pDTO.setName(name);
-        pDTO.setEmail(EncryptUtil.encAES128CBC(email));
+        pDTO.setEmail(encryptUtil.encAES128CBC(email));
 
-        return Optional.ofNullable(userService.searchUserIdOrPasswordProc(pDTO)).orElseGet(UserDTO::new);
+        return Optional.ofNullable(userService.searchIdOrPassword(pDTO)).orElseGet(UserDTO::new);
     }
 
-    @PostMapping(value = "newPasswordProc")
-    public String newPasswordProc(HttpServletRequest request, ModelMap model, HttpSession session) throws Exception {
-        this.callLog("newPasswordProc");
+    @PostMapping(value = "newPassword")
+    public String newPassword(HttpServletRequest request, ModelMap model, HttpSession session) throws Exception {
+        this.callLog("newPassword");
 
         String msg;
 
@@ -228,9 +232,9 @@ public class UserController {
 
             UserDTO pDTO = new UserDTO();
             pDTO.setId(newPassword);
-            pDTO.setPassword(EncryptUtil.encHashSHA256(password));
+            pDTO.setPassword(encryptUtil.encHashSHA256(password));
 
-            userService.newPasswordProc(pDTO);
+            userService.newPassword(pDTO);
 
             session.setAttribute("NEW_PASSWORD", "");
             session.removeAttribute("NEW_PASSWORD");

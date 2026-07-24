@@ -19,10 +19,10 @@ public class UserService implements IUserService {
     private void callLog(String name) { log.info("Calling {}.{}", CLASS_NAME, name); }
 
     @Override
-    public UserDTO getUserIdExists(UserDTO pDTO) throws Exception {
-        this.callLog("getUserIdExists");
+    public UserDTO getIdExists(UserDTO pDTO) throws Exception {
+        this.callLog("getIdExists");
 
-        return userMapper.getUserIdExists(pDTO);
+        return userMapper.getIdExists(pDTO);
     }
 
     @Override
@@ -31,14 +31,14 @@ public class UserService implements IUserService {
 
         UserDTO rDTO = Optional.ofNullable(userMapper.getEmailExists(pDTO)).orElseGet(UserDTO::new);
 
-        log.info("rDTO : {}", rDTO);
+        log.info("rDTO: {}", rDTO);
 
         return rDTO;
     }
 
     @Override
-    public int insertUserInfo(UserDTO pDTO) throws Exception {
-        this.callLog("insertUserInfo");
+    public int insertUser(UserDTO pDTO) throws Exception {
+        this.callLog("insertUser");
 
         return 0;
     }
@@ -51,15 +51,15 @@ public class UserService implements IUserService {
     }
 
     @Override
-    public UserDTO searchUserIdOrPasswordProc(UserDTO pDTO) throws Exception {
-        this.callLog("searchUserIdOrPasswordProc");
+    public UserDTO searchIdOrPassword(UserDTO pDTO) throws Exception {
+        this.callLog("searchIdOrPassword");
 
-        return userMapper.getUserId(pDTO);
+        return userMapper.getId(pDTO);
     }
 
     @Override
-    public int newPasswordProc(UserDTO pDTO) throws Exception {
-        this.callLog("newPasswordProc");
+    public int newPassword(UserDTO pDTO) throws Exception {
+        this.callLog("newPassword");
 
         return userMapper.updatePassword(pDTO);
     }

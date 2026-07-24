@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
 @Data
-@JsonInclude(JsonInclude.Include.NON_DEFAULT)
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class UserDTO {
     private String id;
     private String name;
@@ -14,4 +14,9 @@ public class UserDTO {
     private String addr2;
     private String registerDate;
     private boolean exists;
+    public static UserDTO fromId(String id) {
+        UserDTO result = new UserDTO();
+        result.setId(id);
+        return result;
+    }
 }

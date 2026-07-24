@@ -4,15 +4,15 @@ import org.kidscafe.kindy.dto.UserDTO;
 
 public interface IUserService {
 
-    UserDTO getUserIdExists(UserDTO pDTO) throws Exception;
+    UserDTO getIdExists(UserDTO pDTO) throws Exception;
 
     UserDTO getEmailExists(UserDTO pDTO) throws Exception;
 
-    int insertUserInfo(UserDTO pDTO) throws Exception;
+    int insertUser(UserDTO pDTO) throws Exception;
 
     UserDTO getLogin(UserDTO pDTO) throws Exception;
 
-    UserDTO searchUserIdOrPasswordProc(UserDTO pDTO) throws Exception;
+    UserDTO searchIdOrPassword(UserDTO pDTO) throws Exception;
 
-    int newPasswordProc(UserDTO pDTO) throws Exception;
+    int newPassword(UserDTO pDTO) throws Exception;
 }
