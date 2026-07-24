@@ -15,75 +15,52 @@ import java.util.Optional;
 public class UserInfoService implements IUserInfoService {
 
     private final IUserInfoMapper userInfoMapper;
-
+    private final String CLASS_NAME = this.getClass().getName();
+    private void callLog(String name) { log.info("Calling {}.{}", CLASS_NAME, name); }
 
     @Override
     public UserInfoDTO getUserIdExists(UserInfoDTO pDTO) throws Exception {
+        this.callLog("getUserIdExists");
 
-        log.info("{}. getUserIdExists Start!", this.getClass().getName());
-
-        UserInfoDTO rDTO = userInfoMapper.getUserIdExists(pDTO);
-
-        log.info("{}.getUserIdExists End!", this.getClass().getName());
-
-        return rDTO;
+        return userInfoMapper.getUserIdExists(pDTO);
     }
 
     @Override
     public UserInfoDTO getEmailExists(UserInfoDTO pDTO) throws Exception {
-
-        log.info("{}. emailAuth Start!", this.getClass().getName());
+        this.callLog("getEmailExists");
 
         UserInfoDTO rDTO = Optional.ofNullable(userInfoMapper.getEmailExists(pDTO)).orElseGet(UserInfoDTO::new);
 
         log.info("rDTO : {}", rDTO);
-
-        log.info("{}. emailAuth End!", this.getClass().getName());
 
         return rDTO;
     }
 
     @Override
     public int insertUserInfo(UserInfoDTO pDTO) throws Exception {
+        this.callLog("getEmailExists");
 
         return 0;
     }
 
     @Override
     public UserInfoDTO getLogin(UserInfoDTO pDTO) throws Exception {
+        this.callLog("getEmailExists");
 
-        log.info("{}.getLogin Start!", this.getClass().getName());
-
-        UserInfoDTO rDTO = Optional.ofNullable(userInfoMapper.getLogin(pDTO)).orElseGet(UserInfoDTO::new);
-
-        log.info("{}.getLogin End!", this.getClass().getName());
-
-        return rDTO;
+        return Optional.ofNullable(userInfoMapper.getLogin(pDTO)).orElseGet(UserInfoDTO::new);
     }
 
     @Override
     public UserInfoDTO searchUserIdOrPasswordProc(UserInfoDTO pDTO) throws Exception {
+        this.callLog("getEmailExists");
 
-        log.info("{}.searchUserIdOrPasswordProc Start!", this.getClass().getName());
-
-        UserInfoDTO rDTO = userInfoMapper.getUserId(pDTO);
-
-        log.info("{}.searchUserIdOrPasswordProc End!", this.getClass().getName());
-
-        return rDTO;
+        return userInfoMapper.getUserId(pDTO);
     }
 
     @Override
     public int newPasswordProc(UserInfoDTO pDTO) throws Exception {
+        this.callLog("newPasswordProc");
 
-        log.info("{}.newPasswordProc Start!", this.getClass().getName());
-
-        int success = userInfoMapper.updatePassword(pDTO);
-
-        log.info("{}.newPasswordProc End!", this.getClass().getName());
-
-        return success;
+        return userInfoMapper.updatePassword(pDTO);
     }
-
-
 }

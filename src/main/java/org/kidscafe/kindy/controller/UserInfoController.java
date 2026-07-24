@@ -22,11 +22,13 @@ import java.util.Optional;
 public class UserInfoController {
 
     private final IUserInfoService userInfoService;
+    private final String CLASS_NAME = this.getClass().getName();
+    private void callLog(String name) { log.info("Calling {}.{}", CLASS_NAME, name); }
 
     @ResponseBody
     @PostMapping (value = "userRegForm")
     public String userRegForm() {
-        log.info("{}./user/userRegForm", this.getClass().getName());
+        this.callLog("userRegForm");
 
         return "/user/userRegForm";
     }
@@ -34,8 +36,7 @@ public class UserInfoController {
     @ResponseBody
     @PostMapping(value = "getUserIdExists")
     public UserInfoDTO getUserIdExists(HttpServletRequest request) throws Exception {
-
-        log.info("{}. getUserIdExists Start!", this.getClass().getName());
+        this.callLog("getUserIdExists");
 
         String userId = CmmUtil.nvl(request.getParameter("userId"));
 
@@ -44,18 +45,13 @@ public class UserInfoController {
         UserInfoDTO pDTO = new UserInfoDTO();
         pDTO.setUserId(userId);
 
-        UserInfoDTO rDTO = Optional.ofNullable(userInfoService.getUserIdExists(pDTO)).orElseGet(UserInfoDTO::new);
-
-        log.info("{}. getUserIdExists End!", this.getClass().getName());
-
-        return rDTO;
+        return Optional.ofNullable(userInfoService.getUserIdExists(pDTO)).orElseGet(UserInfoDTO::new);
     }
 
     @ResponseBody
     @PostMapping(value = "getEmailExists")
     public UserInfoDTO getEmailExists(HttpServletRequest request) throws Exception {
-
-        log.info("{}.getEmailExists Start!", this.getClass().getName());
+        this.callLog("getEmailExists");
 
         String email = CmmUtil.nvl(request.getParameter("email"));
 
@@ -64,18 +60,13 @@ public class UserInfoController {
         UserInfoDTO pDTO = new UserInfoDTO();
         pDTO.setEmail(EncryptUtil.encAES128CBC(email));
 
-        UserInfoDTO rDTO = Optional.ofNullable(userInfoService.getEmailExists(pDTO)).orElseGet(UserInfoDTO::new);
-
-        log.info("{}.getEmailExists End!", this.getClass().getName());
-
-        return rDTO;
+        return Optional.ofNullable(userInfoService.getEmailExists(pDTO)).orElseGet(UserInfoDTO::new);
     }
 
     @ResponseBody
     @PostMapping(value = "insertUserInfo")
     public MsgDTO insertUserInfo(HttpServletRequest request) {
-
-        log.info("{}.insertUserInfo Start!", this.getClass().getName());
+        this.callLog("insertUserInfo");
 
         int res = 0;
         String msg = "";
@@ -144,9 +135,7 @@ public class UserInfoController {
     @ResponseBody
     @PostMapping(value = "login")
     public String login() {
-        log.info("{}.login Start!", this.getClass().getName());
-
-        log.info("{}.login End!", this.getClass().getName());
+        this.callLog("login");
 
         return "user/login";
     }
@@ -154,8 +143,7 @@ public class UserInfoController {
     @ResponseBody
     @PostMapping(value = "loginProc")
     public MsgDTO loginProc(HttpServletRequest request, HttpSession session) {
-
-        log.info("{}.loginProc Start!", this.getClass().getName());
+        this.callLog("loginProc");
 
         int res = 0;
         String msg = "";
@@ -211,9 +199,7 @@ public class UserInfoController {
     @ResponseBody
     @PostMapping(value = "loginResult")
     public String loginSuccess() {
-        log.info("{}.user/loginResult Start!", this.getClass().getName());
-
-        log.info("{}.user/loginResult End!", this.getClass().getName());
+        this.callLog("loginResult");
 
         return "user/loginResult";
     }
@@ -221,9 +207,7 @@ public class UserInfoController {
     @ResponseBody
     @PostMapping(value = "searchUserId")
     public String searchUserId() {
-        log.info("{}.user/searchUserId Start!", this.getClass().getName());
-
-        log.info("{}.user/searchUserId End!", this.getClass().getName());
+        this.callLog("searchUserId");
 
         return "user/searchUserId";
 
@@ -231,7 +215,7 @@ public class UserInfoController {
 
     @PostMapping(value = "searchUserIdProc")
     public String searchUserIdProc(HttpServletRequest request, ModelMap model) throws Exception {
-        log.info("{}.searchUserIdProc Start!", this.getClass().getName());
+        this.callLog("searchUserIdProc");
 
         String userName = CmmUtil.nvl(request.getParameter("userName"));
         String email = CmmUtil.nvl(request.getParameter("email"));
@@ -247,8 +231,6 @@ public class UserInfoController {
 
         model.addAttribute("rDTO", rDTO);
 
-        log.info("{}.searchUserIdProc End!", this.getClass().getName());
-
         return "user/searchUserIdResult";
 
     }
@@ -256,12 +238,10 @@ public class UserInfoController {
     @ResponseBody
     @PostMapping(value = "searchPassword")
     public String searchPassword(HttpSession session) {
-        log.info("{}.searchPassword Start!", this.getClass().getName());
+        this.callLog("searchPassword");
 
         session.setAttribute("NEW_PASSWORD", "");
         session.removeAttribute("NEW_PASSWORD");
-
-        log.info("{}.searchPassword End!", this.getClass().getName());
 
         return "user/searchPassword";
 
@@ -269,7 +249,7 @@ public class UserInfoController {
 
     @PostMapping(value = "searchPasswordProc")
     public String searchPasswordProc(HttpServletRequest request, ModelMap model, HttpSession session) throws Exception {
-        log.info("{}.searchPasswordProc Start!", this.getClass().getName());
+        this.callLog("searchPasswordProc");
 
         String userId = CmmUtil.nvl(request.getParameter("userId"));
         String userName = CmmUtil.nvl(request.getParameter("userName"));
@@ -288,15 +268,12 @@ public class UserInfoController {
 
         session.setAttribute("NEW_PASSWORD", userId);
 
-        log.info("{}.searchPasswordProc End!", this.getClass().getName());
-
         return "user/newPassword";   //?????
     }
 
     @PostMapping(value = "newPasswordProc")
     public String newPasswordProc(HttpServletRequest request, ModelMap model, HttpSession session) throws Exception {
-
-        log.info("{}.user/newPasswordProc Start!", this.getClass().getName());
+        this.callLog("newPasswordProc");
 
         String msg;
 
@@ -325,10 +302,6 @@ public class UserInfoController {
 
         model.addAttribute("msg", msg);
 
-        log.info("{}.user/newPasswordProc End!", this.getClass().getName());
-
         return "user/newPasswordResult";
     }
-
 }
-
