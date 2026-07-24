@@ -35,7 +35,7 @@ public class UserInfoController {
         log.info("userId: {}", userId);
 
         UserInfoDTO pDTO = new UserInfoDTO();
-        pDTO.setUserId(userId);
+        pDTO.setId(userId);
 
         return Optional.ofNullable(userInfoService.getUserIdExists(pDTO)).orElseGet(UserInfoDTO::new);
     }
@@ -83,8 +83,8 @@ public class UserInfoController {
 
             pDTO = new UserInfoDTO();
 
-            pDTO.setUserId(userId);
-            pDTO.setUserName(userName);
+            pDTO.setId(userId);
+            pDTO.setName(userName);
 
             pDTO.setPassword(EncryptUtil.encHashSHA256(password));
 
@@ -143,20 +143,20 @@ public class UserInfoController {
 
             pDTO = new UserInfoDTO();
 
-            pDTO.setUserId(userId);
+            pDTO.setId(userId);
 
             pDTO.setPassword(EncryptUtil.encHashSHA256(password));
 
             UserInfoDTO rDTO = userInfoService.getLogin(pDTO);
 
-            if (!CmmUtil.nvl(rDTO.getUserId()).isEmpty()) {
+            if (!CmmUtil.nvl(rDTO.getId()).isEmpty()) {
 
                 res = 1;
 
                 msg = "로그인이 성공했습니다";
 
                 session.setAttribute("SS_USER_ID", userId);
-                session.setAttribute("SS_USER_NAME", CmmUtil.nvl(rDTO.getUserName()));
+                session.setAttribute("SS_USER_NAME", CmmUtil.nvl(rDTO.getName()));
 
             } else {
                 msg = "아이디와 비밀번호가 올바르지 않습니다.";
@@ -188,7 +188,7 @@ public class UserInfoController {
         log.info("userName: {} / email: {}", userName, email);
 
         UserInfoDTO pDTO = new UserInfoDTO();
-        pDTO.setUserName(userName);
+        pDTO.setName(userName);
         pDTO.setEmail(EncryptUtil.encAES128CBC(email));
 
         return Optional.ofNullable(userInfoService.searchUserIdOrPasswordProc(pDTO))
@@ -207,8 +207,8 @@ public class UserInfoController {
         log.info("userId: {} / userName: {} / email: {} ", userId, userName, email);
 
         UserInfoDTO pDTO = new UserInfoDTO();
-        pDTO.setUserId(userId);
-        pDTO.setUserName(userName);
+        pDTO.setId(userId);
+        pDTO.setName(userName);
         pDTO.setEmail(EncryptUtil.encAES128CBC(email));
 
         return Optional.ofNullable(userInfoService.searchUserIdOrPasswordProc(pDTO)).orElseGet(UserInfoDTO::new);
@@ -227,7 +227,7 @@ public class UserInfoController {
             String password = CmmUtil.nvl(request.getParameter("password"));
 
             UserInfoDTO pDTO = new UserInfoDTO();
-            pDTO.setUserId(newPassword);
+            pDTO.setId(newPassword);
             pDTO.setPassword(EncryptUtil.encHashSHA256(password));
 
             userInfoService.newPasswordProc(pDTO);

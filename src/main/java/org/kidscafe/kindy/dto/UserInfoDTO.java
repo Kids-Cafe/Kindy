@@ -6,16 +6,12 @@ import lombok.Data;
 @Data
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public class UserInfoDTO {
-    private String userId;
-    private String userName;
+    private String id;
+    private String name;
     private String password;
     private String email;
     private String addr1;
     private String addr2;
-    private String regId;
-    private String regDt;
-    private String chgId;
-    private String chgDt;
-    private String existsYn;
-    private int authNumber;
+    private String registerDate;
+    private boolean exists;
 }
