@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-public class UserInfoDTO {
+public class UserDTO {
     private String id;
     private String name;
     private byte[] password;

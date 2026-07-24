@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="org.kidscafe.kindy.mapper.IUserInfoMapper">
-    <resultMap id="UserInfoMap" type="UserInfoDTO">
+<mapper namespace="org.kidscafe.kindy.mapper.IUserMapper">
+    <resultMap id="UserMap" type="UserDTO">
         <id property="id" column="C_ID" />
         <result property="name" column="C_NAME" />
         <result property="password" column="C_PASSWORD" />
@@ -12,19 +12,19 @@
         <result property="exists" column="C_EXISTS" />
     </resultMap>
 
-    <select id="getUserIdExists" parameterType="UserInfoDTO" resultType="UserInfoDTO">
+    <select id="getUserIdExists" parameterType="UserDTO" resultType="UserDTO">
         SELECT COUNT(*) > 0 AS C_EXISTS
         FROM T_USER
         WHERE C_ID = #{id}
     </select>
 
-    <select id="getEmailExists" parameterType="UserInfoDTO" resultType="UserInfoDTO">
+    <select id="getEmailExists" parameterType="UserDTO" resultType="UserDTO">
         SELECT COUNT(*) > 0 AS C_EXISTS
         FROM T_USER
         WHERE EMAIL = #{email}
     </select>
 
-    <insert id="insertUserInfo" parameterType="UserInfoDTO">
+    <insert id="insertUserInfo" parameterType="UserDTO">
         INSERT INTO T_USER
         (C_ID,
          C_NAME,
@@ -42,14 +42,14 @@
                 SYSDATE())
     </insert>
 
-    <select id="getLogin" parameterType="UserInfoDTO" resultType="UserInfoDTO">
+    <select id="getLogin" parameterType="UserDTO" resultType="UserDTO">
         SELECT C_ID, C_NAME, C_EMAIL
         FROM T_USER
         WHERE C_ID = #{id}
           AND C_PASSWORD = #{password}
     </select>
 
-    <select id="getUserId" parameterType="UserInfoDTO" resultType="UserInfoDTO">
+    <select id="getUserId" parameterType="UserDTO" resultType="UserDTO">
         SELECT
         C_ID,
         C_NAME,
@@ -62,7 +62,7 @@
         </if>
     </select>
 
-    <update id="updatePassword" parameterType="UserInfoDTO">
+    <update id="updatePassword" parameterType="UserDTO">
         UPDATE T_USER
         SET C_PASSWORD = #{password}
         WHERE C_ID = #{id}
