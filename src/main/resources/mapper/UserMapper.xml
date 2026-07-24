@@ -21,7 +21,7 @@
     <select id="getEmailExists" parameterType="UserDTO" resultMap="UserMap">
         SELECT COUNT(*) > 0 AS C_EXISTS
         FROM T_USER
-        WHERE EMAIL = #{email}
+        WHERE C_EMAIL = #{email}
     </select>
 
     <insert id="insertUserInfo" parameterType="UserDTO">
