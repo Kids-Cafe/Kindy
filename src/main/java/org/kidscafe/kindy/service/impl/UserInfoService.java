@@ -38,21 +38,21 @@ public class UserInfoService implements IUserInfoService {
 
     @Override
     public int insertUserInfo(UserInfoDTO pDTO) throws Exception {
-        this.callLog("getEmailExists");
+        this.callLog("insertUserInfo");
 
         return 0;
     }
 
     @Override
     public UserInfoDTO getLogin(UserInfoDTO pDTO) throws Exception {
-        this.callLog("getEmailExists");
+        this.callLog("getLogin");
 
         return Optional.ofNullable(userInfoMapper.getLogin(pDTO)).orElseGet(UserInfoDTO::new);
     }
 
     @Override
     public UserInfoDTO searchUserIdOrPasswordProc(UserInfoDTO pDTO) throws Exception {
-        this.callLog("getEmailExists");
+        this.callLog("searchUserIdOrPasswordProc");
 
         return userInfoMapper.getUserId(pDTO);
     }
