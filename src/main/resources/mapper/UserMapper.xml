@@ -12,13 +12,13 @@
         <result property="exists" column="C_EXISTS" />
     </resultMap>
 
-    <select id="getUserIdExists" parameterType="UserDTO" resultType="UserDTO">
+    <select id="getUserIdExists" parameterType="UserDTO" resultMap="UserMap">
         SELECT COUNT(*) > 0 AS C_EXISTS
         FROM T_USER
         WHERE C_ID = #{id}
     </select>
 
-    <select id="getEmailExists" parameterType="UserDTO" resultType="UserDTO">
+    <select id="getEmailExists" parameterType="UserDTO" resultMap="UserMap">
         SELECT COUNT(*) > 0 AS C_EXISTS
         FROM T_USER
         WHERE EMAIL = #{email}
@@ -42,14 +42,14 @@
                 SYSDATE())
     </insert>
 
-    <select id="getLogin" parameterType="UserDTO" resultType="UserDTO">
+    <select id="getLogin" parameterType="UserDTO" resultMap="UserMap">
         SELECT C_ID, C_NAME, C_EMAIL
         FROM T_USER
         WHERE C_ID = #{id}
           AND C_PASSWORD = #{password}
     </select>
 
-    <select id="getUserId" parameterType="UserDTO" resultType="UserDTO">
+    <select id="getUserId" parameterType="UserDTO" resultMap="UserMap">
         SELECT
         C_ID,
         C_NAME,
