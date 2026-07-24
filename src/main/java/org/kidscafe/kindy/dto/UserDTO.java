@@ -10,8 +10,8 @@ public class UserDTO {
     private String name;
     private byte[] password;
     private byte[] email;
-    private String addr1;
-    private String addr2;
+    private byte[] addr1;
+    private byte[] addr2;
     private String registerDate;
     private boolean exists;
     public static UserDTO fromId(String id) {

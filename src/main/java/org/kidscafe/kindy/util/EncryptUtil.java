@@ -26,6 +26,7 @@ public class EncryptUtil {
     private final byte[] ivBytes = new byte[16];
 
     public byte[] encHashSHA256(String str) {
+        if (str == null) return null;
         String plainText = salt + str;
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -40,6 +41,7 @@ public class EncryptUtil {
             throws NoSuchAlgorithmException, NoSuchPaddingException,
             InvalidKeyException, InvalidAlgorithmParameterException,
             IllegalBlockSizeException, BadPaddingException {
+        if (str == null) return null;
         return encAES128CBC(str.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -47,6 +49,8 @@ public class EncryptUtil {
             throws NoSuchAlgorithmException, NoSuchPaddingException,
             InvalidKeyException, InvalidAlgorithmParameterException,
             IllegalBlockSizeException, BadPaddingException {
+
+        if (textBytes == null) return null;
 
         SecretKeySpec keySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "AES");
         IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
@@ -61,6 +65,8 @@ public class EncryptUtil {
             throws NoSuchAlgorithmException, NoSuchPaddingException,
             InvalidKeyException, InvalidAlgorithmParameterException,
             IllegalBlockSizeException, BadPaddingException {
+
+        if (encryptedBytes == null) return null;
 
         SecretKeySpec keySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "AES");
         IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);

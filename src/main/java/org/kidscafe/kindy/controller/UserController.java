@@ -63,68 +63,43 @@ public class UserController {
 
     @ResponseBody
     @PostMapping(value = "insertUser")
-    public MsgDTO insertUser(HttpServletRequest request) {
+    public ResultDTO insertUser(HttpServletRequest request) {
         this.callLog("insertUser");
 
-        int res = 0;
-        String msg = "";
-        MsgDTO dto;
-
-        UserDTO pDTO;
+        ResultDTO result;
 
         try {
+            UserDTO pDTO = new UserDTO();
+            pDTO.setId(request.getParameter("id"));
+            if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
+            pDTO.setName(request.getParameter("name"));
+            if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
+            pDTO.setPassword(encryptUtil.encHashSHA256(request.getParameter("password")));
+            pDTO.setEmail(encryptUtil.encAES128CBC(request.getParameter("email")));
+            pDTO.setAddr1(encryptUtil.encAES128CBC(request.getParameter("addr1")));
+            if (pDTO.getAddr1() == null) return ResultDTO.error("MISSING_PARAMETER");
+            pDTO.setAddr2(encryptUtil.encAES128CBC(request.getParameter("addr2")));
 
-            String id = CmmUtil.nvl(request.getParameter("id"));
-            String name = CmmUtil.nvl(request.getParameter("name"));
-            String password = CmmUtil.nvl(request.getParameter("password"));
-            String email = CmmUtil.nvl(request.getParameter("email"));
-            String addr1 = CmmUtil.nvl(request.getParameter("addr1"));
-            String addr2 = CmmUtil.nvl(request.getParameter("addr2"));
+            log.info(pDTO.toString());
 
-            log.info("id: " + id);
-            log.info("name: " + name);
-            log.info("email: " + email);
-            log.info("addr1: " + addr1);
-            log.info("addr2: " + addr2);
-
-            pDTO = new UserDTO();
-
-            pDTO.setId(id);
-            pDTO.setName(name);
-
-            pDTO.setPassword(encryptUtil.encHashSHA256(password));
-
-            pDTO.setEmail(encryptUtil.encAES128CBC(email));
-            pDTO.setAddr1(addr1);
-            pDTO.setAddr2(addr2);
-
-            res = userService.insertUser(pDTO);
+            int res = userService.insertUser(pDTO);
 
             log.info("회원가입 결과: " + res);
 
             if (res == 1) {
-                msg = "회원가입되었습니다.";
-
+                result = ResultDTO.success("SIGNUP_COMPLETE");
             } else if (res == 2) {
-                msg = "이미 가입된 아이디입니다.";
-
+                result = ResultDTO.error("DUPLICATE_ID");
             } else {
-                msg = "오류로 인해 회원가입이 실패하였습니다.";
-
+                result = ResultDTO.error("UNKNOWN_ERROR");
             }
 
-        } catch(Exception e) {
-
-            msg = "실패하였습니다.: " + e;
+        } catch (Exception e) {
+            result = ResultDTO.error("UNKNOWN_ERROR", e);
             log.info(e.toString());
-
-        } finally {
-            dto = new MsgDTO();
-            dto.setResult(res);
-            dto.setMsg(msg);
         }
 
-        return dto;
+        return result;
     }
 
     @ResponseBody

@@ -31,15 +31,13 @@
          C_PASSWORD,
          C_EMAIL,
          C_ADDR1,
-         C_ADDR2,
-         C_REGISTER_DATE)
+         C_ADDR2)
         VALUES (#{id},
                 #{name},
                 #{password},
                 #{email},
                 #{addr1},
-                #{addr2},
-                SYSDATE())
+                #{addr2})
     </insert>
 
     <select id="getLogin" parameterType="UserDTO" resultMap="UserMap">

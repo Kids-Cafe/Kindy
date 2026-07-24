@@ -6,6 +6,7 @@ import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.mapper.IUserMapper;
 import org.kidscafe.kindy.service.IUserService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -36,11 +37,12 @@ public class UserService implements IUserService {
         return rDTO;
     }
 
+    @Transactional
     @Override
     public int insertUser(UserDTO pDTO) throws Exception {
         this.callLog("insertUser");
 
-        return 0;
+        return userMapper.insertUser(pDTO);
     }
 
     @Override
@@ -57,6 +59,7 @@ public class UserService implements IUserService {
         return userMapper.getId(pDTO);
     }
 
+    @Transactional
     @Override
     public int newPassword(UserDTO pDTO) throws Exception {
         this.callLog("newPassword");
