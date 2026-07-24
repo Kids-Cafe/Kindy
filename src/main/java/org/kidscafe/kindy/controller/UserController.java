@@ -72,6 +72,7 @@ public class UserController {
             UserDTO pDTO = new UserDTO();
             pDTO.setId(request.getParameter("id"));
             if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
+            if (pDTO.getId().length() < 4) return ResultDTO.error("INVALID_PARAMETER");
             pDTO.setName(request.getParameter("name"));
             if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
             pDTO.setPassword(encryptUtil.encHashSHA256(request.getParameter("password")));
@@ -104,56 +105,38 @@ public class UserController {
 
     @ResponseBody
     @PostMapping(value = "login")
-    public MsgDTO login(HttpServletRequest request, HttpSession session) {
+    public ResultDTO login(HttpServletRequest request, HttpSession session) {
         this.callLog("login");
 
-        int res = 0;
-        String msg = "";
-        MsgDTO dto;
-
-        UserDTO pDTO;
+        ResultDTO result;
 
         try {
+            UserDTO pDTO = new UserDTO();
 
-            String id = CmmUtil.nvl(request.getParameter("id"));
-            String password = CmmUtil.nvl(request.getParameter("password"));
+            pDTO.setId(request.getParameter("id"));
+            if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
+            pDTO.setPassword(encryptUtil.encHashSHA256(request.getParameter("password")));
+            if (pDTO.getPassword() == null) return ResultDTO.error("MISSING_PARAMETER");
 
-            log.info("id: {}", id);
+            log.info(pDTO.toString());
 
-            pDTO = new UserDTO();
+            UserDTO rDTO = userService.login(pDTO);
 
-            pDTO.setId(id);
+            if (rDTO.getId() != null) {
+                result = ResultDTO.success("SIGNIN_COMPLETE");
 
-            pDTO.setPassword(encryptUtil.encHashSHA256(password));
-
-            UserDTO rDTO = userService.getLogin(pDTO);
-
-            if (!CmmUtil.nvl(rDTO.getId()).isEmpty()) {
-
-                res = 1;
-
-                msg = "로그인이 성공했습니다";
-
-                session.setAttribute("SS_USER_ID", id);
-                session.setAttribute("SS_USER_NAME", CmmUtil.nvl(rDTO.getName()));
-
+                session.setAttribute("SS_USER_ID", rDTO.getId());
+                session.setAttribute("SS_USER_NAME", rDTO.getName());
             } else {
-                msg = "아이디와 비밀번호가 올바르지 않습니다.";
-
+                result = ResultDTO.error("SIGNIN_NO_MATCHES");
             }
 
         } catch (Exception e) {
-            msg = "시스템 문제로 로그인이 실패했습니다.";
-            res = 2;
+            result = ResultDTO.error("UNKNOWN_ERROR", e);
             log.info(e.toString());
-
-        } finally {
-            dto = new MsgDTO();
-            dto.setResult(res);
-            dto.setMsg(msg);
         }
 
-        return dto;
+        return result;
     }
 
     @ResponseBody

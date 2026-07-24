@@ -10,7 +10,7 @@ public interface IUserService {
 
     int insertUser(UserDTO pDTO) throws Exception;
 
-    UserDTO getLogin(UserDTO pDTO) throws Exception;
+    UserDTO login(UserDTO pDTO) throws Exception;
 
     UserDTO searchIdOrPassword(UserDTO pDTO) throws Exception;
 
