@@ -1,5 +1,7 @@
 package org.kidscafe.kindy.util;
 
+import org.springframework.beans.factory.annotation.Value;
+
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -19,7 +21,8 @@ public class EncryptUtil {
 
     private static final byte[] ivBytes = new byte[16];
 
-    private static final String key = "PolyTechnic12345";
+    @Value("${kindy.encrypt.key}")
+    private static String key;
 
     public static String encHashSHA256(String str) {
         String result;
