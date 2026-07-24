@@ -47,7 +47,7 @@ public class UserService implements IUserService {
 
     @Override
     public UserDTO login(UserDTO pDTO) throws Exception {
-        this.callLog("getLogin");
+        this.callLog("login");
 
         return Optional.ofNullable(userMapper.getLogin(pDTO)).orElseGet(UserDTO::new);
     }
