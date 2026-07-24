@@ -24,35 +24,28 @@ public class EncryptUtil {
     @Value("${kindy.encrypt.key}")
     private static String key;
 
-    public static String encHashSHA256(String str) {
-        String result;
+    public static byte[] encHashSHA256(String str) {
         String plainText = addMessage + str;
-
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             digest.update(plainText.getBytes());
-            byte[] hash = digest.digest();
-
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hash) {
-                sb.append(String.format("%02x", b));
-            }
-
-            result = sb.toString();
-
+            return digest.digest();
         } catch (NoSuchAlgorithmException e) {
-            result = "";
+            return null;
         }
-
-        return result;
     }
 
-    public static String encAES128CBC(String str)
+    public static byte[] encAES128CBC(String str)
             throws NoSuchAlgorithmException, NoSuchPaddingException,
             InvalidKeyException, InvalidAlgorithmParameterException,
             IllegalBlockSizeException, BadPaddingException {
+        return encAES128CBC(str.getBytes(StandardCharsets.UTF_8));
+    }
 
-        byte[] textBytes = str.getBytes(StandardCharsets.UTF_8);
+    public static byte[] encAES128CBC(byte[] textBytes)
+            throws NoSuchAlgorithmException, NoSuchPaddingException,
+            InvalidKeyException, InvalidAlgorithmParameterException,
+            IllegalBlockSizeException, BadPaddingException {
 
         SecretKeySpec keySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "AES");
         IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
@@ -60,17 +53,13 @@ public class EncryptUtil {
         Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
         cipher.init(Cipher.ENCRYPT_MODE, keySpec, ivSpec);
 
-        byte[] encrypted = cipher.doFinal(textBytes);
-
-        return Base64.getEncoder().encodeToString(encrypted);
+        return cipher.doFinal(textBytes);
     }
 
-    public static String decAES128CBC(String str)
+    public static String decAES128CBC(byte[] encryptedBytes)
             throws NoSuchAlgorithmException, NoSuchPaddingException,
             InvalidKeyException, InvalidAlgorithmParameterException,
             IllegalBlockSizeException, BadPaddingException {
-
-        byte[] encryptedBytes = Base64.getDecoder().decode(str);
 
         SecretKeySpec keySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "AES");
         IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);

@@ -8,8 +8,8 @@ import lombok.Data;
 public class UserInfoDTO {
     private String id;
     private String name;
-    private String password;
-    private String email;
+    private byte[] password;
+    private byte[] email;
     private String addr1;
     private String addr2;
     private String registerDate;
