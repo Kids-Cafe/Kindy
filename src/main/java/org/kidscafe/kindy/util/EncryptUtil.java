@@ -1,6 +1,7 @@
 package org.kidscafe.kindy.util;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -13,19 +14,19 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Base64;
 
+@Component
 public class EncryptUtil {
-
-    private static final String addMessage = "PolyDataAnalysis";
-
-    private static final byte[] ivBytes = new byte[16];
+    @Value("${kindy.encrypt.salt}")
+    private String salt;
 
     @Value("${kindy.encrypt.key}")
-    private static String key;
+    private String key;
 
-    public static byte[] encHashSHA256(String str) {
-        String plainText = addMessage + str;
+    private final byte[] ivBytes = new byte[16];
+
+    public byte[] encHashSHA256(String str) {
+        String plainText = salt + str;
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             digest.update(plainText.getBytes());
@@ -35,14 +36,14 @@ public class EncryptUtil {
         }
     }
 
-    public static byte[] encAES128CBC(String str)
+    public byte[] encAES128CBC(String str)
             throws NoSuchAlgorithmException, NoSuchPaddingException,
             InvalidKeyException, InvalidAlgorithmParameterException,
             IllegalBlockSizeException, BadPaddingException {
         return encAES128CBC(str.getBytes(StandardCharsets.UTF_8));
     }
 
-    public static byte[] encAES128CBC(byte[] textBytes)
+    public byte[] encAES128CBC(byte[] textBytes)
             throws NoSuchAlgorithmException, NoSuchPaddingException,
             InvalidKeyException, InvalidAlgorithmParameterException,
             IllegalBlockSizeException, BadPaddingException {
@@ -56,7 +57,7 @@ public class EncryptUtil {
         return cipher.doFinal(textBytes);
     }
 
-    public static String decAES128CBC(byte[] encryptedBytes)
+    public String decAES128CBC(byte[] encryptedBytes)
             throws NoSuchAlgorithmException, NoSuchPaddingException,
             InvalidKeyException, InvalidAlgorithmParameterException,
             IllegalBlockSizeException, BadPaddingException {
