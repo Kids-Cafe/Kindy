@@ -41,22 +41,19 @@
     </insert>
 
     <select id="getLogin" parameterType="UserDTO" resultMap="UserMap">
-        SELECT C_ID, C_NAME, C_EMAIL
+        SELECT C_ID, C_NAME, C_EMAIL, TRUE AS C_EXISTS
         FROM T_USER
         WHERE C_ID = #{id}
           AND C_PASSWORD = #{password}
     </select>
 
     <select id="getId" parameterType="UserDTO" resultMap="UserMap">
-        SELECT
-        C_ID,
-        C_NAME,
-        C_EMAIL
+        SELECT C_ID, C_NAME, C_EMAIL, TRUE AS C_EXISTS
         FROM T_USER
-        WHERE USER_NAME = #{name}
-            AND EMAIL = #{email}
-        <if test="userId neq null and userId neq '' ">
-            AND USER_ID = #{id}
+        WHERE C_NAME = #{name}
+            AND C_EMAIL = #{email}
+        <if test="id neq null and id neq '' ">
+            AND C_ID = #{id}
         </if>
     </select>
 

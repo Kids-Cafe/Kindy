@@ -140,20 +140,20 @@ public class UserController {
 
     @ResponseBody
     @PostMapping(value = "searchId")
-    public UserDTO searchId(HttpServletRequest request, ModelMap model) throws Exception {
+    public ResultDTO searchId(HttpServletRequest request, ModelMap model) throws Exception {
         this.callLog("searchId");
 
-        String name = CmmUtil.nvl(request.getParameter("name"));
-        String email = CmmUtil.nvl(request.getParameter("email"));
-
-        log.info("name: {} / email: {}", name, email);
-
         UserDTO pDTO = new UserDTO();
-        pDTO.setName(name);
-        pDTO.setEmail(encryptUtil.encAES128CBC(email));
+        pDTO.setName(request.getParameter("name"));
+        if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
+        pDTO.setEmail(encryptUtil.encAES128CBC(request.getParameter("email")));
+        if (pDTO.getEmail() == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        return Optional.ofNullable(userService.searchIdOrPassword(pDTO))
-                .orElseGet(UserDTO::new);
+        log.info(pDTO.toString());
+
+        UserDTO user = userService.searchIdOrPassword(pDTO);
+
+        return ResultDTO.success(user != null ? "USER_FOUND" : "USER_NOT_FOUND", user);
     }
 
     @ResponseBody
