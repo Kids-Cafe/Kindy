@@ -1,0 +1,158 @@
+package org.kidscafe.kindy.controller;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.kidscafe.kindy.dto.ResultDTO;
+import org.kidscafe.kindy.dto.UserDTO;
+import org.kidscafe.kindy.service.IUserService;
+import org.kidscafe.kindy.util.CmmUtil;
+import org.kidscafe.kindy.util.EncryptUtil;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.ModelMap;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Optional;
+
+@Slf4j
+@RequestMapping(value = "/api/user")
+@RequiredArgsConstructor
+@Controller
+public class UserController {
+
+    private final IUserService userService;
+    private final EncryptUtil encryptUtil;
+    private final String CLASS_NAME = this.getClass().getName();
+    private void callLog(String name) { log.info("Calling {}.{}", CLASS_NAME, name); }
+
+    @ResponseBody
+    @GetMapping(value = "getIdExists")
+    public ResultDTO getIdExists(HttpServletRequest request) throws Exception {
+        this.callLog("getIdExists");
+
+        String id = request.getParameter("id");
+
+        if (id == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        log.info("id: {}", id);
+
+        UserDTO user = userService.getIdExists(UserDTO.fromId(id));
+
+        return ResultDTO.success(user.isExists() ? "USER_FOUND" : "USER_NOT_FOUND", user);
+    }
+
+    @ResponseBody
+    @GetMapping(value = "getEmailExists")
+    public ResultDTO getEmailExists(HttpServletRequest request) throws Exception {
+        this.callLog("getEmailExists");
+
+        String email = request.getParameter("email");
+
+        if (email == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        log.info("email: {}", email);
+
+        UserDTO pDTO = new UserDTO();
+        pDTO.setEmail(encryptUtil.encAES128CBC(email));
+        UserDTO user = userService.getEmailExists(pDTO);
+
+        return ResultDTO.success(user.isExists() ? "USER_FOUND" : "USER_NOT_FOUND", user);
+    }
+
+    @ResponseBody
+    @PostMapping(value = "insertUser")
+    public ResultDTO insertUser(HttpServletRequest request) {
+        this.callLog("insertUser");
+
+        ResultDTO result;
+
+        try {
+            UserDTO pDTO = new UserDTO();
+            pDTO.setId(request.getParameter("id"));
+            if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
+            if (pDTO.getId().length() < 4) return ResultDTO.error("INVALID_PARAMETER");
+            pDTO.setName(request.getParameter("name"));
+            if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
+            pDTO.setPassword(encryptUtil.encHashSHA256(request.getParameter("password")));
+            pDTO.setEmail(encryptUtil.encAES128CBC(request.getParameter("email")));
+            pDTO.setAddr1(encryptUtil.encAES128CBC(request.getParameter("addr1")));
+            if (pDTO.getAddr1() == null) return ResultDTO.error("MISSING_PARAMETER");
+            pDTO.setAddr2(encryptUtil.encAES128CBC(request.getParameter("addr2")));
+
+            log.info(pDTO.toString());
+
+            int res = userService.insertUser(pDTO);
+
+            log.info("회원가입 결과: " + res);
+
+            if (res == 1) {
+                result = ResultDTO.success("SIGNUP_COMPLETE");
+            } else if (res == 2) {
+                result = ResultDTO.error("DUPLICATE_ID");
+            } else {
+                result = ResultDTO.error("UNKNOWN_ERROR");
+            }
+
+        } catch (Exception e) {
+            result = ResultDTO.error("UNKNOWN_ERROR", e);
+            log.info(e.toString());
+        }
+
+        return result;
+    }
+
+    @ResponseBody
+    @PostMapping(value = "login")
+    public ResultDTO login(HttpServletRequest request, HttpSession session) {
+        this.callLog("login");
+
+        ResultDTO result;
+
+        try {
+            UserDTO pDTO = new UserDTO();
+
+            pDTO.setId(request.getParameter("id"));
+            if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
+            pDTO.setPassword(encryptUtil.encHashSHA256(request.getParameter("password")));
+            if (pDTO.getPassword() == null) return ResultDTO.error("MISSING_PARAMETER");
+
+            log.info(pDTO.toString());
+
+            UserDTO rDTO = userService.login(pDTO);
+
+            if (rDTO.getId() != null) {
+                result = ResultDTO.success("SIGNIN_COMPLETE");
+
+                session.setAttribute("SS_USER_ID", rDTO.getId());
+                session.setAttribute("SS_USER_NAME", rDTO.getName());
+            } else {
+                result = ResultDTO.error("SIGNIN_NO_MATCHES");
+            }
+
+        } catch (Exception e) {
+            result = ResultDTO.error("UNKNOWN_ERROR", e);
+            log.info(e.toString());
+        }
+
+        return result;
+    }
+
+    @ResponseBody
+    @PostMapping(value = "searchId")
+    public ResultDTO searchId(HttpServletRequest request, ModelMap model) throws Exception {
+        this.callLog("searchId");
+
+        UserDTO pDTO = new UserDTO();
+        pDTO.setName(request.getParameter("name"));
+        if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
+        pDTO.setEmail(encryptUtil.encAES128CBC(request.getParameter("email")));
+        if (pDTO.getEmail() == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        log.info(pDTO.toString());
+
+        UserDTO user = userService.searchIdOrPassword(pDTO);
+
+        return ResultDTO.success(user != null ? "USER_FOUND" : "USER_NOT_FOUND", user);
+    }
+}

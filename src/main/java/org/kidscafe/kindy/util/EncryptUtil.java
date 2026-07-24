@@ -1,5 +1,8 @@
 package org.kidscafe.kindy.util;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -11,45 +14,43 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Base64;
 
+@Component
 public class EncryptUtil {
+    @Value("${kindy.encrypt.salt}")
+    private String salt;
 
-    private static final String addMessage = "PolyDataAnalysis";
+    @Value("${kindy.encrypt.key}")
+    private String key;
 
-    private static final byte[] ivBytes = new byte[16];
+    private final byte[] ivBytes = new byte[16];
 
-    private static final String key = "PolyTechnic12345";
-
-    public static String encHashSHA256(String str) {
-        String result;
-        String plainText = addMessage + str;
-
+    public byte[] encHashSHA256(String str) {
+        if (str == null) return null;
+        String plainText = salt + str;
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             digest.update(plainText.getBytes());
-            byte[] hash = digest.digest();
-
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hash) {
-                sb.append(String.format("%02x", b));
-            }
-
-            result = sb.toString();
-
+            return digest.digest();
         } catch (NoSuchAlgorithmException e) {
-            result = "";
+            return null;
         }
-
-        return result;
     }
 
-    public static String encAES128CBC(String str)
+    public byte[] encAES128CBC(String str)
+            throws NoSuchAlgorithmException, NoSuchPaddingException,
+            InvalidKeyException, InvalidAlgorithmParameterException,
+            IllegalBlockSizeException, BadPaddingException {
+        if (str == null) return null;
+        return encAES128CBC(str.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public byte[] encAES128CBC(byte[] textBytes)
             throws NoSuchAlgorithmException, NoSuchPaddingException,
             InvalidKeyException, InvalidAlgorithmParameterException,
             IllegalBlockSizeException, BadPaddingException {
 
-        byte[] textBytes = str.getBytes(StandardCharsets.UTF_8);
+        if (textBytes == null) return null;
 
         SecretKeySpec keySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "AES");
         IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
@@ -57,17 +58,15 @@ public class EncryptUtil {
         Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
         cipher.init(Cipher.ENCRYPT_MODE, keySpec, ivSpec);
 
-        byte[] encrypted = cipher.doFinal(textBytes);
-
-        return Base64.getEncoder().encodeToString(encrypted);
+        return cipher.doFinal(textBytes);
     }
 
-    public static String decAES128CBC(String str)
+    public String decAES128CBC(byte[] encryptedBytes)
             throws NoSuchAlgorithmException, NoSuchPaddingException,
             InvalidKeyException, InvalidAlgorithmParameterException,
             IllegalBlockSizeException, BadPaddingException {
 
-        byte[] encryptedBytes = Base64.getDecoder().decode(str);
+        if (encryptedBytes == null) return null;
 
         SecretKeySpec keySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "AES");
         IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
