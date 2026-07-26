@@ -7,18 +7,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.service.IUserService;
-import org.kidscafe.kindy.util.CmmUtil;
 import org.kidscafe.kindy.util.EncryptUtil;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Optional;
 
 @Slf4j
 @RequestMapping(value = "/api/user")
 @RequiredArgsConstructor
-@Controller
+@RestController
 public class UserController {
 
     private final IUserService userService;
@@ -26,7 +21,6 @@ public class UserController {
     private final String CLASS_NAME = this.getClass().getName();
     private void callLog(String name) { log.info("Calling {}.{}", CLASS_NAME, name); }
 
-    @ResponseBody
     @GetMapping(value = "getIdExists")
     public ResultDTO getIdExists(HttpServletRequest request) throws Exception {
         this.callLog("getIdExists");
@@ -42,7 +36,6 @@ public class UserController {
         return ResultDTO.success(user.isExists() ? "USER_FOUND" : "USER_NOT_FOUND", user);
     }
 
-    @ResponseBody
     @GetMapping(value = "getEmailExists")
     public ResultDTO getEmailExists(HttpServletRequest request) throws Exception {
         this.callLog("getEmailExists");
@@ -60,7 +53,6 @@ public class UserController {
         return ResultDTO.success(user.isExists() ? "USER_FOUND" : "USER_NOT_FOUND", user);
     }
 
-    @ResponseBody
     @PostMapping(value = "insertUser")
     public ResultDTO insertUser(HttpServletRequest request) {
         this.callLog("insertUser");
@@ -95,14 +87,13 @@ public class UserController {
             }
 
         } catch (Exception e) {
-            result = ResultDTO.error("UNKNOWN_ERROR", e);
+            result = ResultDTO.error("UNKNOWN_ERROR");
             log.info(e.toString());
         }
 
         return result;
     }
 
-    @ResponseBody
     @PostMapping(value = "login")
     public ResultDTO login(HttpServletRequest request, HttpSession session) {
         this.callLog("login");
@@ -131,16 +122,15 @@ public class UserController {
             }
 
         } catch (Exception e) {
-            result = ResultDTO.error("UNKNOWN_ERROR", e);
+            result = ResultDTO.error("UNKNOWN_ERROR");
             log.info(e.toString());
         }
 
         return result;
     }
 
-    @ResponseBody
     @PostMapping(value = "searchId")
-    public ResultDTO searchId(HttpServletRequest request, ModelMap model) throws Exception {
+    public ResultDTO searchId(HttpServletRequest request) throws Exception {
         this.callLog("searchId");
 
         UserDTO pDTO = new UserDTO();
