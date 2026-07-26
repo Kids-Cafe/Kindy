@@ -18,16 +18,20 @@ import java.security.NoSuchAlgorithmException;
 @Component
 public class EncryptUtil {
     @Value("${kindy.encrypt.salt}")
-    private String salt;
+    private String PEPPER;
 
     @Value("${kindy.encrypt.key}")
-    private String key;
+    private String KEY;
 
     private final byte[] ivBytes = new byte[16];
 
     public byte[] encHashSHA256(String str) {
+        return encHashSHA256(str, "");
+    }
+
+    public byte[] encHashSHA256(String str, String salt) {
         if (str == null) return null;
-        String plainText = salt + str;
+        String plainText = PEPPER + str + salt;
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             digest.update(plainText.getBytes());
@@ -52,7 +56,7 @@ public class EncryptUtil {
 
         if (textBytes == null) return null;
 
-        SecretKeySpec keySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "AES");
+        SecretKeySpec keySpec = new SecretKeySpec(KEY.getBytes(StandardCharsets.UTF_8), "AES");
         IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
 
         Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
@@ -68,7 +72,7 @@ public class EncryptUtil {
 
         if (encryptedBytes == null) return null;
 
-        SecretKeySpec keySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "AES");
+        SecretKeySpec keySpec = new SecretKeySpec(KEY.getBytes(StandardCharsets.UTF_8), "AES");
         IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
 
         Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
