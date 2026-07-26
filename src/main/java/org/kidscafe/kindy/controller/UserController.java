@@ -30,7 +30,7 @@ public class UserController {
 
         UserDTO user = userService.getIdExists(UserDTO.fromId(id));
 
-        return ResultDTO.success(user.isExists() ? "USER_FOUND" : "USER_NOT_FOUND", user);
+        return ResultDTO.success(user != null ? "USER_FOUND" : "USER_NOT_FOUND", user);
     }
 
     @GetMapping(value = "getEmailExists")
@@ -47,7 +47,7 @@ public class UserController {
         pDTO.setEmail(encryptUtil.encAES128CBC(email));
         UserDTO user = userService.getEmailExists(pDTO);
 
-        return ResultDTO.success(user.isExists() ? "USER_FOUND" : "USER_NOT_FOUND", user);
+        return ResultDTO.success(user != null ? "USER_FOUND" : "USER_NOT_FOUND", user);
     }
 
     @PostMapping(value = "insertUser")
