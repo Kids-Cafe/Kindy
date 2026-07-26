@@ -95,8 +95,6 @@ public class UserController {
     public ResultDTO login(HttpServletRequest request, HttpSession session) {
         log.info("Calling login");
 
-        ResultDTO result;
-
         try {
             UserDTO pDTO = new UserDTO();
 
@@ -105,21 +103,40 @@ public class UserController {
             pDTO.setPassword(encryptUtil.encHashSHA256(request.getParameter("password")));
             if (pDTO.getPassword() == null) return ResultDTO.error("MISSING_PARAMETER");
 
-            log.info(pDTO.toString());
+            log.info("Login Attempt: {}", pDTO.getId());
 
             UserDTO rDTO = userService.login(pDTO);
 
             if (rDTO == null) return ResultDTO.error("SIGNIN_NO_MATCHES");
-            result = ResultDTO.success("SIGNIN_COMPLETE");
 
-            session.setAttribute("SS_USER_ID", rDTO.getId());
-            session.setAttribute("SS_USER_NAME", rDTO.getName());
+            session.invalidate();
+            session = request.getSession(true);
+            session.setMaxInactiveInterval(3600);
+            session.setAttribute("SESSION_USER_ID", rDTO.getId());
+            session.setAttribute("SESSION_USER_NAME", rDTO.getName());
+
+            return ResultDTO.success("SIGNIN_COMPLETE");
         } catch (Exception e) {
-            result = ResultDTO.error("UNKNOWN_ERROR");
             log.info(e.toString());
+            return ResultDTO.error("UNKNOWN_ERROR");
         }
+    }
 
-        return result;
+    @GetMapping(value = "session")
+    public ResultDTO session(HttpSession session) {
+        log.info("Calling session");
+        String id = (String) session.getAttribute("SESSION_USER_ID");
+        if (id == null) return ResultDTO.success("NOT_SIGNED_IN", null);
+        UserDTO rDTO = UserDTO.fromId(id);
+        rDTO.setName((String) session.getAttribute("SESSION_USER_NAME"));
+        return ResultDTO.success("SIGNED_IN", rDTO);
+    }
+
+    @PostMapping(value = "logout")
+    public ResultDTO logout(HttpSession session) {
+        log.info("Calling logout");
+        session.invalidate();
+        return ResultDTO.success("SIGNOUT_COMPLETE");
     }
 
     @PostMapping(value = "searchId")
