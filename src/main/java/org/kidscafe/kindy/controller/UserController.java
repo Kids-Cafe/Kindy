@@ -112,8 +112,8 @@ public class UserController {
             if (rDTO == null) return ResultDTO.error("SIGNIN_NO_MATCHES");
             result = ResultDTO.success("SIGNIN_COMPLETE");
 
-            session.setAttribute("SESSION_USER_ID", rDTO.getId());
-            session.setAttribute("SESSION_USER_NAME", rDTO.getName());
+            session.setAttribute("SS_USER_ID", rDTO.getId());
+            session.setAttribute("SS_USER_NAME", rDTO.getName());
         } catch (Exception e) {
             result = ResultDTO.error("UNKNOWN_ERROR");
             log.info(e.toString());
