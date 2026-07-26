@@ -105,21 +105,30 @@ public class UserController {
             pDTO.setPassword(encryptUtil.encHashSHA256(request.getParameter("password")));
             if (pDTO.getPassword() == null) return ResultDTO.error("MISSING_PARAMETER");
 
-            log.info(pDTO.toString());
+            log.info("Login Attempt: {}", pDTO.getId());
 
             UserDTO rDTO = userService.login(pDTO);
 
             if (rDTO == null) return ResultDTO.error("SIGNIN_NO_MATCHES");
-            result = ResultDTO.success("SIGNIN_COMPLETE");
 
-            session.setAttribute("SS_USER_ID", rDTO.getId());
-            session.setAttribute("SS_USER_NAME", rDTO.getName());
+            session.invalidate();
+            session.setAttribute("SESSION_USER_ID", rDTO.getId());
+            session.setAttribute("SESSION_USER_NAME", rDTO.getName());
+
+            result = ResultDTO.success("SIGNIN_COMPLETE");
         } catch (Exception e) {
             result = ResultDTO.error("UNKNOWN_ERROR");
             log.info(e.toString());
         }
 
         return result;
+    }
+
+    @PostMapping(value = "logout")
+    public ResultDTO logout(HttpSession session) {
+        log.info("Calling logout");
+        session.invalidate();
+        return ResultDTO.success("SIGNOUT_COMPLETE");
     }
 
     @PostMapping(value = "searchId")
