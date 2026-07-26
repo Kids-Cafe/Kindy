@@ -15,15 +15,12 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @RestController
 public class UserController {
-
     private final IUserService userService;
     private final EncryptUtil encryptUtil;
-    private final String CLASS_NAME = this.getClass().getName();
-    private void callLog(String name) { log.info("Calling {}.{}", CLASS_NAME, name); }
 
     @GetMapping(value = "getIdExists")
     public ResultDTO getIdExists(HttpServletRequest request) throws Exception {
-        this.callLog("getIdExists");
+        log.info("Calling getIdExists");
 
         String id = request.getParameter("id");
 
@@ -38,7 +35,7 @@ public class UserController {
 
     @GetMapping(value = "getEmailExists")
     public ResultDTO getEmailExists(HttpServletRequest request) throws Exception {
-        this.callLog("getEmailExists");
+        log.info("Calling getEmailExists");
 
         String email = request.getParameter("email");
 
@@ -55,7 +52,7 @@ public class UserController {
 
     @PostMapping(value = "insertUser")
     public ResultDTO insertUser(HttpServletRequest request) {
-        this.callLog("insertUser");
+        log.info("Calling insertUser");
 
         ResultDTO result;
 
@@ -76,7 +73,7 @@ public class UserController {
 
             int res = userService.insertUser(pDTO);
 
-            log.info("회원가입 결과: " + res);
+            log.info("User Register Result: " + res);
 
             if (res == 1) {
                 result = ResultDTO.success("SIGNUP_COMPLETE");
@@ -96,7 +93,7 @@ public class UserController {
 
     @PostMapping(value = "login")
     public ResultDTO login(HttpServletRequest request, HttpSession session) {
-        this.callLog("login");
+        log.info("Calling login");
 
         ResultDTO result;
 
@@ -115,8 +112,8 @@ public class UserController {
             if (rDTO.getId() != null) {
                 result = ResultDTO.success("SIGNIN_COMPLETE");
 
-                session.setAttribute("SS_USER_ID", rDTO.getId());
-                session.setAttribute("SS_USER_NAME", rDTO.getName());
+                session.setAttribute("SESSION_USER_ID", rDTO.getId());
+                session.setAttribute("SESSION_USER_NAME", rDTO.getName());
             } else {
                 result = ResultDTO.error("SIGNIN_NO_MATCHES");
             }
@@ -131,7 +128,7 @@ public class UserController {
 
     @PostMapping(value = "searchId")
     public ResultDTO searchId(HttpServletRequest request) throws Exception {
-        this.callLog("searchId");
+        log.info("Calling searchId");
 
         UserDTO pDTO = new UserDTO();
         pDTO.setName(request.getParameter("name"));
