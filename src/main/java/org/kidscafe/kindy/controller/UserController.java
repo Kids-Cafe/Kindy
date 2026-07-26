@@ -109,15 +109,11 @@ public class UserController {
 
             UserDTO rDTO = userService.login(pDTO);
 
-            if (rDTO.getId() != null) {
-                result = ResultDTO.success("SIGNIN_COMPLETE");
+            if (rDTO == null) return ResultDTO.error("SIGNIN_NO_MATCHES");
+            result = ResultDTO.success("SIGNIN_COMPLETE");
 
-                session.setAttribute("SESSION_USER_ID", rDTO.getId());
-                session.setAttribute("SESSION_USER_NAME", rDTO.getName());
-            } else {
-                result = ResultDTO.error("SIGNIN_NO_MATCHES");
-            }
-
+            session.setAttribute("SESSION_USER_ID", rDTO.getId());
+            session.setAttribute("SESSION_USER_NAME", rDTO.getName());
         } catch (Exception e) {
             result = ResultDTO.error("UNKNOWN_ERROR");
             log.info(e.toString());

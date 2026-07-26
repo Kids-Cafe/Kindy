@@ -8,8 +8,6 @@ import org.kidscafe.kindy.service.IUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
-
 @Slf4j
 @RequiredArgsConstructor
 @Service
@@ -30,11 +28,7 @@ public class UserService implements IUserService {
     public UserDTO getEmailExists(UserDTO pDTO) throws Exception {
         this.callLog("getEmailExists");
 
-        UserDTO rDTO = Optional.ofNullable(userMapper.getEmailExists(pDTO)).orElseGet(UserDTO::new);
-
-        log.info("rDTO: {}", rDTO);
-
-        return rDTO;
+        return userMapper.getEmailExists(pDTO);
     }
 
     @Transactional
@@ -49,7 +43,7 @@ public class UserService implements IUserService {
     public UserDTO login(UserDTO pDTO) throws Exception {
         this.callLog("login");
 
-        return Optional.ofNullable(userMapper.getLogin(pDTO)).orElseGet(UserDTO::new);
+        return userMapper.getLogin(pDTO);
     }
 
     @Override
