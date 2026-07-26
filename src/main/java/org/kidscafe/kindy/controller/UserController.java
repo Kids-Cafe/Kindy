@@ -7,29 +7,20 @@ import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.service.IUserService;
-import org.kidscafe.kindy.util.CmmUtil;
 import org.kidscafe.kindy.util.EncryptUtil;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Optional;
 
 @Slf4j
 @RequestMapping(value = "/api/user")
 @RequiredArgsConstructor
-@Controller
+@RestController
 public class UserController {
-
     private final IUserService userService;
     private final EncryptUtil encryptUtil;
-    private final String CLASS_NAME = this.getClass().getName();
-    private void callLog(String name) { log.info("Calling {}.{}", CLASS_NAME, name); }
 
-    @ResponseBody
     @GetMapping(value = "getIdExists")
     public ResultDTO getIdExists(HttpServletRequest request) throws Exception {
-        this.callLog("getIdExists");
+        log.info("Calling getIdExists");
 
         String id = request.getParameter("id");
 
@@ -39,13 +30,12 @@ public class UserController {
 
         UserDTO user = userService.getIdExists(UserDTO.fromId(id));
 
-        return ResultDTO.success(user.isExists() ? "USER_FOUND" : "USER_NOT_FOUND", user);
+        return ResultDTO.success(user != null ? "USER_FOUND" : "USER_NOT_FOUND", user);
     }
 
-    @ResponseBody
     @GetMapping(value = "getEmailExists")
     public ResultDTO getEmailExists(HttpServletRequest request) throws Exception {
-        this.callLog("getEmailExists");
+        log.info("Calling getEmailExists");
 
         String email = request.getParameter("email");
 
@@ -57,13 +47,12 @@ public class UserController {
         pDTO.setEmail(encryptUtil.encAES128CBC(email));
         UserDTO user = userService.getEmailExists(pDTO);
 
-        return ResultDTO.success(user.isExists() ? "USER_FOUND" : "USER_NOT_FOUND", user);
+        return ResultDTO.success(user != null ? "USER_FOUND" : "USER_NOT_FOUND", user);
     }
 
-    @ResponseBody
     @PostMapping(value = "insertUser")
     public ResultDTO insertUser(HttpServletRequest request) {
-        this.callLog("insertUser");
+        log.info("Calling insertUser");
 
         ResultDTO result;
 
@@ -84,7 +73,7 @@ public class UserController {
 
             int res = userService.insertUser(pDTO);
 
-            log.info("회원가입 결과: " + res);
+            log.info("User Register Result: " + res);
 
             if (res == 1) {
                 result = ResultDTO.success("SIGNUP_COMPLETE");
@@ -95,17 +84,16 @@ public class UserController {
             }
 
         } catch (Exception e) {
-            result = ResultDTO.error("UNKNOWN_ERROR", e);
+            result = ResultDTO.error("UNKNOWN_ERROR");
             log.info(e.toString());
         }
 
         return result;
     }
 
-    @ResponseBody
     @PostMapping(value = "login")
     public ResultDTO login(HttpServletRequest request, HttpSession session) {
-        this.callLog("login");
+        log.info("Calling login");
 
         ResultDTO result;
 
@@ -121,27 +109,22 @@ public class UserController {
 
             UserDTO rDTO = userService.login(pDTO);
 
-            if (rDTO.getId() != null) {
-                result = ResultDTO.success("SIGNIN_COMPLETE");
+            if (rDTO == null) return ResultDTO.error("SIGNIN_NO_MATCHES");
+            result = ResultDTO.success("SIGNIN_COMPLETE");
 
-                session.setAttribute("SS_USER_ID", rDTO.getId());
-                session.setAttribute("SS_USER_NAME", rDTO.getName());
-            } else {
-                result = ResultDTO.error("SIGNIN_NO_MATCHES");
-            }
-
+            session.setAttribute("SS_USER_ID", rDTO.getId());
+            session.setAttribute("SS_USER_NAME", rDTO.getName());
         } catch (Exception e) {
-            result = ResultDTO.error("UNKNOWN_ERROR", e);
+            result = ResultDTO.error("UNKNOWN_ERROR");
             log.info(e.toString());
         }
 
         return result;
     }
 
-    @ResponseBody
     @PostMapping(value = "searchId")
-    public ResultDTO searchId(HttpServletRequest request, ModelMap model) throws Exception {
-        this.callLog("searchId");
+    public ResultDTO searchId(HttpServletRequest request) throws Exception {
+        log.info("Calling searchId");
 
         UserDTO pDTO = new UserDTO();
         pDTO.setName(request.getParameter("name"));
