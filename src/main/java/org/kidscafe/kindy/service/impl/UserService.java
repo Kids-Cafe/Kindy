@@ -12,21 +12,18 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Service
 public class UserService implements IUserService {
-
     private final IUserMapper userMapper;
-    private final String CLASS_NAME = this.getClass().getName();
-    private void callLog(String name) { log.info("Calling {}.{}", CLASS_NAME, name); }
 
     @Override
     public UserDTO getIdExists(UserDTO pDTO) throws Exception {
-        this.callLog("getIdExists");
+        log.info("Calling getIdExists");
 
         return userMapper.getIdExists(pDTO);
     }
 
     @Override
     public UserDTO getEmailExists(UserDTO pDTO) throws Exception {
-        this.callLog("getEmailExists");
+        log.info("Calling getEmailExists");
 
         return userMapper.getEmailExists(pDTO);
     }
@@ -34,21 +31,21 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int insertUser(UserDTO pDTO) throws Exception {
-        this.callLog("insertUser");
+        log.info("Calling insertUser");
 
         return userMapper.insertUser(pDTO);
     }
 
     @Override
     public UserDTO login(UserDTO pDTO) throws Exception {
-        this.callLog("login");
+        log.info("Calling login");
 
         return userMapper.getLogin(pDTO);
     }
 
     @Override
     public UserDTO searchIdOrPassword(UserDTO pDTO) throws Exception {
-        this.callLog("searchIdOrPassword");
+        log.info("Calling searchIdOrPassword");
 
         return userMapper.getId(pDTO);
     }
@@ -56,7 +53,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int newPassword(UserDTO pDTO) throws Exception {
-        this.callLog("newPassword");
+        log.info("Calling newPassword");
 
         return userMapper.updatePassword(pDTO);
     }
