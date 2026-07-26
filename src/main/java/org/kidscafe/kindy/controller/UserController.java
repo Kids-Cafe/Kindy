@@ -95,8 +95,6 @@ public class UserController {
     public ResultDTO login(HttpServletRequest request, HttpSession session) {
         log.info("Calling login");
 
-        ResultDTO result;
-
         try {
             UserDTO pDTO = new UserDTO();
 
@@ -112,16 +110,26 @@ public class UserController {
             if (rDTO == null) return ResultDTO.error("SIGNIN_NO_MATCHES");
 
             session.invalidate();
+            session = request.getSession(true);
+            session.setMaxInactiveInterval(3600);
             session.setAttribute("SESSION_USER_ID", rDTO.getId());
             session.setAttribute("SESSION_USER_NAME", rDTO.getName());
 
-            result = ResultDTO.success("SIGNIN_COMPLETE");
+            return ResultDTO.success("SIGNIN_COMPLETE");
         } catch (Exception e) {
-            result = ResultDTO.error("UNKNOWN_ERROR");
             log.info(e.toString());
+            return ResultDTO.error("UNKNOWN_ERROR");
         }
+    }
 
-        return result;
+    @GetMapping(value = "session")
+    public ResultDTO session(HttpSession session) {
+        log.info("Calling session");
+        String id = (String) session.getAttribute("SESSION_USER_ID");
+        if (id == null) return ResultDTO.success("NOT_SIGNED_IN", null);
+        UserDTO rDTO = UserDTO.fromId(id);
+        rDTO.setName((String) session.getAttribute("SESSION_USER_NAME"));
+        return ResultDTO.success("SIGNED_IN", rDTO);
     }
 
     @PostMapping(value = "logout")
