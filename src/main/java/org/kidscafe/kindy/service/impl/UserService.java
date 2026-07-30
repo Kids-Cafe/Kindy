@@ -57,4 +57,10 @@ public class UserService implements IUserService {
 
         return userMapper.updatePassword(pDTO);
     }
+
+    @Override
+    public void updateEmail(UserDTO pDTO) throws Exception {
+        log.info("Calling updateEmail");
+    }
+
 }

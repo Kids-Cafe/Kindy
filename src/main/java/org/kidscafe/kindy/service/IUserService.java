@@ -15,4 +15,7 @@ public interface IUserService {
     UserDTO searchIdOrPassword(UserDTO pDTO) throws Exception;
 
     int newPassword(UserDTO pDTO) throws Exception;
+
+    void newEmail(UserDTO pDTO) throws Exception;
+
 }

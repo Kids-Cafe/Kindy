@@ -7,8 +7,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.service.IUserService;
+import org.kidscafe.kindy.util.CmmUtil;
 import org.kidscafe.kindy.util.EncryptUtil;
+import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Optional;
 
 @Slf4j
 @RequestMapping(value = "/api/user")
@@ -154,5 +158,73 @@ public class UserController {
         UserDTO user = userService.searchIdOrPassword(pDTO);
 
         return ResultDTO.success(user != null ? "USER_FOUND" : "USER_NOT_FOUND", user);
+    }
+
+    @PostMapping(value = "searchPassword")
+    public ResultDTO searchPassword(HttpServletRequest request, HttpSession session) throws Exception {
+        log.info("Calling searchPassword");
+
+        String userId = CmmUtil.nvl(request.getParameter("userId"));
+        String userName = CmmUtil.nvl(request.getParameter("userName"));
+        String email = CmmUtil.nvl(request.getParameter("email"));
+
+        UserDTO pDTO = new UserDTO();
+        pDTO.setId(userId);
+        pDTO.setName(userName);
+        pDTO.setEmail(encryptUtil.encAES128CBC(email));
+
+        UserDTO rDTO = userService.searchIdOrPassword(pDTO);
+
+        session.setAttribute("NEW_PASSWORD", userId);
+
+        return ResultDTO.success(rDTO != null ? "USER_FOUND" : "USER_NOT_FOUND", rDTO);
+    }
+
+    @PostMapping(value = "newPassword")
+    public ResultDTO newPassword(HttpServletRequest request, HttpSession session) throws Exception {
+        log.info("Calling newPassword");
+
+        String newPassword = CmmUtil.nvl((String) session.getAttribute("NEW_PASSWORD"));
+
+        if (!newPassword.isEmpty()) {
+
+            String password = CmmUtil.nvl(request.getParameter("password"));
+
+            UserDTO pDTO = new UserDTO();
+            pDTO.setId(newPassword);
+            pDTO.setPassword(encryptUtil.encHashSHA256(password));
+
+            userService.newPassword(pDTO);
+
+            session.setAttribute("NEW_PASSWORD", "");
+            session.removeAttribute("NEW_PASSWORD");
+
+            return ResultDTO.success("PASSWORD_RESET");
+        } else {
+            return ResultDTO.error("INVALID_ACCESS");
+        }
+    }
+
+
+    @PostMapping(value = "newEmail")
+    public ResultDTO newEmail(HttpServletRequest request, HttpSession session) throws Exception {
+        log.info("Calling newEmail");
+
+        String newEmail = CmmUtil.nvl((String) session.getAttribute("NEW_EMAIL"));
+
+        if (!newEmail.isEmpty()) {
+
+            String Email = CmmUtil.nvl(request.getParameter("password"));       //'Email' 부분만 이상하게 회색인거 빼곤 끝
+
+            UserDTO pDTO = new UserDTO();
+            pDTO.setId(newEmail);
+
+            userService.newEmail(pDTO);
+
+            return ResultDTO.success("EMAIL_RESET");
+        } else {
+            return ResultDTO.error("INVALID_ACCESS");
+
+        }
     }
 }
