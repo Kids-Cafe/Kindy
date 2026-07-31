@@ -9,10 +9,7 @@ import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.service.IUserService;
 import org.kidscafe.kindy.util.CmmUtil;
 import org.kidscafe.kindy.util.EncryptUtil;
-import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Optional;
 
 @Slf4j
 @RequestMapping(value = "/api/user")
@@ -173,11 +170,15 @@ public class UserController {
         pDTO.setName(userName);
         pDTO.setEmail(encryptUtil.encAES128CBC(email));
 
+        // TODO: add email auth before proceeding
+
         UserDTO rDTO = userService.searchIdOrPassword(pDTO);
+
+        if (rDTO == null) return ResultDTO.error("USER_NOT_FOUND");
 
         session.setAttribute("NEW_PASSWORD", userId);
 
-        return ResultDTO.success(rDTO != null ? "USER_FOUND" : "USER_NOT_FOUND", rDTO);
+        return ResultDTO.success("USER_FOUND", rDTO);
     }
 
     @PostMapping(value = "newPassword")
@@ -214,12 +215,13 @@ public class UserController {
 
         if (!newEmail.isEmpty()) {
 
-            String Email = CmmUtil.nvl(request.getParameter("password"));       //'Email' 부분만 이상하게 회색인거 빼곤 끝
+            String email = CmmUtil.nvl(request.getParameter("email"));
 
             UserDTO pDTO = new UserDTO();
             pDTO.setId(newEmail);
+            pDTO.setEmail(encryptUtil.encAES128CBC(email));
 
-            userService.newEmail(pDTO);
+            userService.updateEmail(pDTO);
 
             return ResultDTO.success("EMAIL_RESET");
         } else {

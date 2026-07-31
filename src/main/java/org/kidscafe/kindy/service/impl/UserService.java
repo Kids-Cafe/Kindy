@@ -59,8 +59,9 @@ public class UserService implements IUserService {
     }
 
     @Override
-    public void updateEmail(UserDTO pDTO) throws Exception {
+    public int updateEmail(UserDTO pDTO) throws Exception {
         log.info("Calling updateEmail");
-    }
 
+        return userMapper.updateEmail(pDTO);
+    }
 }

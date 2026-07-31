@@ -16,6 +16,5 @@ public interface IUserService {
 
     int newPassword(UserDTO pDTO) throws Exception;
 
-    void newEmail(UserDTO pDTO) throws Exception;
-
+    int updateEmail(UserDTO pDTO) throws Exception;
 }

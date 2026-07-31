@@ -18,6 +18,6 @@ public interface IUserMapper {
 
     int updatePassword(UserDTO pDTO) throws Exception;
 
-    void updateEmail(UserDTO pDTO) throws Exception;
+    int updateEmail(UserDTO pDTO) throws Exception;
 
 }
