@@ -62,4 +62,11 @@
         SET C_PASSWORD = #{password}
         WHERE C_ID = #{id}
     </update>
+
+    <update id="updateEmail" parameterType="UserDTO">
+        UPDATE T_USER
+        SET C_EMAIL = #{email}
+        WHERE C_ID = #{id}
+    </update>
+
 </mapper>

@@ -155,4 +155,74 @@ public class UserController {
 
         return ResultDTO.success(user != null ? "USER_FOUND" : "USER_NOT_FOUND", user);
     }
+
+    @PostMapping(value = "searchPassword")
+    public ResultDTO searchPassword(HttpServletRequest request, HttpSession session) throws Exception {
+        log.info("Calling searchPassword");
+
+        UserDTO pDTO = new UserDTO();
+
+        pDTO.setId(request.getParameter("id"));
+        if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
+        pDTO.setName(request.getParameter("name"));
+        if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
+        pDTO.setEmail(encryptUtil.encAES128CBC(request.getParameter("email")));
+        if (pDTO.getEmail() == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        // TODO: add email auth before proceeding
+
+        UserDTO rDTO = userService.searchIdOrPassword(pDTO);
+
+        if (rDTO == null) return ResultDTO.error("USER_NOT_FOUND");
+
+        session.setAttribute("NEW_PASSWORD", rDTO.getId());
+
+        return ResultDTO.success("USER_FOUND", rDTO);
+    }
+
+    @PostMapping(value = "newPassword")
+    public ResultDTO newPassword(HttpServletRequest request, HttpSession session) throws Exception {
+        log.info("Calling newPassword");
+
+        String newPassword = (String) session.getAttribute("NEW_PASSWORD");
+
+        if (newPassword == null || newPassword.isEmpty()) return ResultDTO.error("INVALID_ACCESS");
+
+        String password = request.getParameter("password");
+
+        if (password == null) return ResultDTO.error("MISSING_PARAMETER");
+        if (password.length() < 4) return ResultDTO.error("INVALID_PARAMETER");
+
+        UserDTO pDTO = new UserDTO();
+        pDTO.setId(newPassword);
+        pDTO.setPassword(encryptUtil.encHashSHA256(password));
+
+        userService.newPassword(pDTO);
+
+        session.removeAttribute("NEW_PASSWORD");
+
+        return ResultDTO.success("PASSWORD_UPDATED");
+    }
+
+
+    @PostMapping(value = "newEmail")
+    public ResultDTO newEmail(HttpServletRequest request, HttpSession session) throws Exception {
+        log.info("Calling newEmail");
+
+        String newEmail = (String) session.getAttribute("NEW_EMAIL");
+
+        if (newEmail == null || newEmail.isEmpty()) return ResultDTO.error("INVALID_ACCESS");
+
+        String email = request.getParameter("email");
+
+        if (email == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        UserDTO pDTO = new UserDTO();
+        pDTO.setId(newEmail);
+        pDTO.setEmail(encryptUtil.encAES128CBC(email));
+
+        userService.updateEmail(pDTO);
+
+        return ResultDTO.success("EMAIL_UPDATED");
+    }
 }
