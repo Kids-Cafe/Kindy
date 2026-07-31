@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.service.IUserService;
-import org.kidscafe.kindy.util.CmmUtil;
 import org.kidscafe.kindy.util.EncryptUtil;
 import org.springframework.web.bind.annotation.*;
 
@@ -161,14 +160,14 @@ public class UserController {
     public ResultDTO searchPassword(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling searchPassword");
 
-        String userId = CmmUtil.nvl(request.getParameter("userId"));
-        String userName = CmmUtil.nvl(request.getParameter("userName"));
-        String email = CmmUtil.nvl(request.getParameter("email"));
-
         UserDTO pDTO = new UserDTO();
-        pDTO.setId(userId);
-        pDTO.setName(userName);
-        pDTO.setEmail(encryptUtil.encAES128CBC(email));
+
+        pDTO.setId(request.getParameter("id"));
+        if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
+        pDTO.setName(request.getParameter("name"));
+        if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
+        pDTO.setEmail(encryptUtil.encAES128CBC(request.getParameter("email")));
+        if (pDTO.getEmail() == null) return ResultDTO.error("MISSING_PARAMETER");
 
         // TODO: add email auth before proceeding
 
@@ -176,7 +175,7 @@ public class UserController {
 
         if (rDTO == null) return ResultDTO.error("USER_NOT_FOUND");
 
-        session.setAttribute("NEW_PASSWORD", userId);
+        session.setAttribute("NEW_PASSWORD", rDTO.getId());
 
         return ResultDTO.success("USER_FOUND", rDTO);
     }
@@ -185,25 +184,24 @@ public class UserController {
     public ResultDTO newPassword(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling newPassword");
 
-        String newPassword = CmmUtil.nvl((String) session.getAttribute("NEW_PASSWORD"));
+        String newPassword = (String) session.getAttribute("NEW_PASSWORD");
 
-        if (!newPassword.isEmpty()) {
+        if (newPassword == null || newPassword.isEmpty()) return ResultDTO.error("INVALID_ACCESS");
 
-            String password = CmmUtil.nvl(request.getParameter("password"));
+        String password = request.getParameter("password");
 
-            UserDTO pDTO = new UserDTO();
-            pDTO.setId(newPassword);
-            pDTO.setPassword(encryptUtil.encHashSHA256(password));
+        if (password == null) return ResultDTO.error("MISSING_PARAMETER");
+        if (password.length() < 4) return ResultDTO.error("INVALID_PARAMETER");
 
-            userService.newPassword(pDTO);
+        UserDTO pDTO = new UserDTO();
+        pDTO.setId(newPassword);
+        pDTO.setPassword(encryptUtil.encHashSHA256(password));
 
-            session.setAttribute("NEW_PASSWORD", "");
-            session.removeAttribute("NEW_PASSWORD");
+        userService.newPassword(pDTO);
 
-            return ResultDTO.success("PASSWORD_RESET");
-        } else {
-            return ResultDTO.error("INVALID_ACCESS");
-        }
+        session.removeAttribute("NEW_PASSWORD");
+
+        return ResultDTO.success("PASSWORD_UPDATED");
     }
 
 
@@ -211,22 +209,20 @@ public class UserController {
     public ResultDTO newEmail(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling newEmail");
 
-        String newEmail = CmmUtil.nvl((String) session.getAttribute("NEW_EMAIL"));
+        String newEmail = (String) session.getAttribute("NEW_EMAIL");
 
-        if (!newEmail.isEmpty()) {
+        if (newEmail == null || newEmail.isEmpty()) return ResultDTO.error("INVALID_ACCESS");
 
-            String email = CmmUtil.nvl(request.getParameter("email"));
+        String email = request.getParameter("email");
 
-            UserDTO pDTO = new UserDTO();
-            pDTO.setId(newEmail);
-            pDTO.setEmail(encryptUtil.encAES128CBC(email));
+        if (email == null) return ResultDTO.error("MISSING_PARAMETER");
 
-            userService.updateEmail(pDTO);
+        UserDTO pDTO = new UserDTO();
+        pDTO.setId(newEmail);
+        pDTO.setEmail(encryptUtil.encAES128CBC(email));
 
-            return ResultDTO.success("EMAIL_RESET");
-        } else {
-            return ResultDTO.error("INVALID_ACCESS");
+        userService.updateEmail(pDTO);
 
-        }
+        return ResultDTO.success("EMAIL_UPDATED");
     }
 }
