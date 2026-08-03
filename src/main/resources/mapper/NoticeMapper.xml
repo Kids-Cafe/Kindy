@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="kopo.poly.mapper.INoticeMapper">
+
+    <select id="getNoticeList" resultType="NoticeDTO">
+        SELECT N.NOTICE_SEQ, N.TITLE, N.NOTICE_YN, N.READ_CNT, U.USER_NAME, N.USER_ID,
+               TO_CHAR(N.REG_DT, 'YYYY-MM-DD') AS REG_DT
+        FROM NOTICE N, USER_INFO U
+        WHERE N.USER_ID = U.USER_ID
+        ORDER BY N.NOTICE_YN, N.REG_DT DESC
+    </select>
+
+    <insert id="insertNoticeInfo" parameterType="NoticeDTO">
+        INSERT INTO NOTICE
+        (
+            NOTICE_SEQ, TITLE, NOTICE_YN, CONTENTS, USER_ID, READ_CNT,
+            REG_ID, REG_DT, CHG_ID, CHG_DT
+        )
+        VALUES (
+                       (SELECT NVL(MAX(A.NOTICE_SEQ),0)+1 FROM NOTICE A),
+                       #{title}, #{noticeYn}, #{contents}, #{userId}, 0, #{userId}, NOW(), #{userId}, NOW()
+               )
+    </insert>
+
+    <select id="getNoticeInfo" resultType="NoticeDTO">
+        SELECT N.NOTICE_SEQ, N.TITLE, N.NOTICE_YN, N.READ_CNT, U.USER_NAME, N.USER_ID,
+               CONTENTS, DATE_FORMAT(N.REG_DT, '%Y-%m-%d') AS REG_DT
+        FROM NOTICE N, USER_INFO U
+        WHERE N.USER_ID = U.USER_ID
+          AND N.NOTICE_SEQ = #{noticeSeq}
+    </select>
+
+    <update id="updateNoticeReadCnt" parameterType="NoticeDTO">
+        UPDATE NOTICE SET
+            READ_CNT = READ_CNT + 1
+        WHERE
+            NOTICE_SEQ = #{noticeSeq}
+    </update>
+
+    <update id="updateNoticeInfo" parameterType="NoticeDTO">
+        UPDATE NOTICE SET
+                          TITLE = #{title},
+                          NOTICE_YN = #{noticeYn},
+                          CONTENTS = #{contents},
+                          CHG_ID = #{userId},
+                          CHG_DT = SYSDATE()
+        WHERE
+            NOTICE_SEQ = #{noticeSeq}
+    </update>
+
+    <delete id="deleteNoticeInfo" parameterType="NoticeDTO">
+        DELETE FROM NOTICE
+        WHERE NOTICE_SEQ = #{noticeSeq}
+
+    </delete>
+
+</mapper>
