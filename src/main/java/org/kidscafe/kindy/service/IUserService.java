@@ -12,13 +12,15 @@ public interface IUserService {
 
     UserDTO login(String id, String password) throws Exception;
 
-    UserDTO searchIdOrPassword(UserDTO pDTO) throws Exception;
+    UserDTO getInfo(String id) throws Exception;
+
+    int updateInfo(UserDTO pDTO) throws Exception;
+
+    UserDTO getId(String name, String email) throws Exception;
+
+    UserDTO getId(String name, String email, String id) throws Exception;
 
     int newPassword(String id, String password) throws Exception;
 
-    int updateEmail(UserDTO pDTO) throws Exception;
-
-    UserDTO getInfo(UserDTO pDTO) throws Exception;
-
-    int updateInfo(UserDTO pDTO) throws Exception;
+    int updateEmail(String id, String email) throws Exception;
 }

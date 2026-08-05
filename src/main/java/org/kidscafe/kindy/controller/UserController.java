@@ -144,7 +144,7 @@ public class UserController {
         log.info("Calling info");
         String id = (String) session.getAttribute("SESSION_USER_ID");
         if (id == null) return ResultDTO.error("INVALID_ACCESS");
-        UserDTO rDTO = userService.getInfo(UserDTO.fromId(id));
+        UserDTO rDTO = userService.getInfo(id);
         if (rDTO == null) return ResultDTO.error("USER_NOT_FOUND");
         return ResultDTO.success("QUERY_COMPLETE", new UserDTO.PlainUserDTO(
                 rDTO.getId(),
@@ -191,15 +191,12 @@ public class UserController {
     public ResultDTO searchId(HttpServletRequest request) throws Exception {
         log.info("Calling searchId");
 
-        UserDTO pDTO = new UserDTO();
-        pDTO.setName(request.getParameter("name"));
-        if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
-        pDTO.setEmail(request.getParameter("email"));
-        if (pDTO.getEmail() == null) return ResultDTO.error("MISSING_PARAMETER");
+        String name = request.getParameter("name");
+        if (name == null) return ResultDTO.error("MISSING_PARAMETER");
+        String email = request.getParameter("email");
+        if (email == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        log.info(pDTO.toString());
-
-        UserDTO user = userService.searchIdOrPassword(pDTO);
+        UserDTO user = userService.getId(name, email);
 
         return ResultDTO.success(user != null ? "USER_FOUND" : "USER_NOT_FOUND", user);
     }
@@ -208,18 +205,16 @@ public class UserController {
     public ResultDTO searchPassword(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling searchPassword");
 
-        UserDTO pDTO = new UserDTO();
-
-        pDTO.setId(request.getParameter("id"));
-        if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
-        pDTO.setName(request.getParameter("name"));
-        if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
-        pDTO.setEmail(request.getParameter("email"));
-        if (pDTO.getEmail() == null) return ResultDTO.error("MISSING_PARAMETER");
+        String id = request.getParameter("id");
+        if (id == null) return ResultDTO.error("MISSING_PARAMETER");
+        String name = request.getParameter("name");
+        if (name == null) return ResultDTO.error("MISSING_PARAMETER");
+        String email = request.getParameter("email");
+        if (email == null) return ResultDTO.error("MISSING_PARAMETER");
 
         // TODO: add email auth before proceeding
 
-        UserDTO rDTO = userService.searchIdOrPassword(pDTO);
+        UserDTO rDTO = userService.getId(name, email, id);
 
         if (rDTO == null) return ResultDTO.error("USER_NOT_FOUND");
 
@@ -261,11 +256,7 @@ public class UserController {
 
         if (email == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        UserDTO pDTO = new UserDTO();
-        pDTO.setId(newEmail);
-        pDTO.setEmail(email);
-
-        userService.updateEmail(pDTO);
+        userService.updateEmail(newEmail, email);
 
         return ResultDTO.success("EMAIL_UPDATED");
     }

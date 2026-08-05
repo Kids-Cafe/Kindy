@@ -60,8 +60,38 @@ public class UserService implements IUserService {
     }
 
     @Override
-    public UserDTO searchIdOrPassword(UserDTO pDTO) throws Exception {
-        log.info("Calling searchIdOrPassword");
+    public UserDTO getInfo(String id) throws Exception {
+        log.info("Calling getInfo");
+
+        return userMapper.getInfo(UserDTO.fromId(id));
+    }
+
+    @Transactional
+    @Override
+    public int updateInfo(UserDTO pDTO) throws Exception {
+        log.info("calling updateInfo");
+
+        return userMapper.updateInfo(pDTO);
+    }
+
+    @Override
+    public UserDTO getId(String name, String email) throws Exception {
+        log.info("Calling getId");
+
+        UserDTO pDTO = new UserDTO();
+        pDTO.setName(name);
+        pDTO.setEmail(email);
+
+        return userMapper.getId(pDTO);
+    }
+
+    @Override
+    public UserDTO getId(String name, String email, String id) throws Exception {
+        log.info("Calling getId");
+
+        UserDTO pDTO = UserDTO.fromId(id);
+        pDTO.setName(name);
+        pDTO.setEmail(email);
 
         return userMapper.getId(pDTO);
     }
@@ -79,24 +109,14 @@ public class UserService implements IUserService {
         return userMapper.updatePassword(pDTO);
     }
 
+    @Transactional
     @Override
-    public int updateEmail(UserDTO pDTO) throws Exception {
+    public int updateEmail(String id, String email) throws Exception {
         log.info("Calling updateEmail");
 
+        UserDTO pDTO = UserDTO.fromId(id);
+        pDTO.setEmail(email);
+
         return userMapper.updateEmail(pDTO);
-    }
-
-    @Override
-    public UserDTO getInfo(UserDTO pDTO) throws Exception {
-        log.info("Calling getInfo");
-
-        return userMapper.getInfo(pDTO);
-    }
-
-    @Override
-    public int updateInfo(UserDTO pDTO) throws Exception {
-        log.info("calling updateInfo");
-
-        return userMapper.updateInfo(pDTO);
     }
 }
