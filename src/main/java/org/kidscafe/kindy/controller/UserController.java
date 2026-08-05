@@ -79,7 +79,6 @@ public class UserController {
             if (pDTO.getPostcode() == null) return ResultDTO.error("MISSING_PARAMETER");
 
             log.info("User Register Attempt: {}", pDTO.getId());
-            log.info("Data: {}, {}, {}", password, pDTO.getPasswordSalt(), pDTO.getPassword());
 
             int res = userService.insertUser(pDTO);
 

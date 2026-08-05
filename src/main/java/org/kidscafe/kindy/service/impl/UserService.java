@@ -69,7 +69,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int updateInfo(UserDTO pDTO) throws Exception {
-        log.info("calling updateInfo");
+        log.info("Calling updateInfo");
 
         return userMapper.updateInfo(pDTO);
     }
