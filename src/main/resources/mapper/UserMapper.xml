@@ -62,4 +62,15 @@
         WHERE ID = #{id}
     </update>
 
+    <select id="getInfo" parameterType="UserDTO" resultType="UserDTO">
+        SELECT ID, NAME, EMAIL, ADDRESS, ADDRESS_DETAIL, POSTCODE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
+        FROM T_USER
+        WHERE ID = #{id}
+    </select>
+
+    <update id="updateInfo" parameterType="UserDTO">
+        UPDATE T_USER
+        SET ADDRESS = #{address}, ADDRESS_DETAIL = #{addressDetail}, POSTCODE = #{postcode}
+        WHERE ID = #{id}
+    </update>
 </mapper>

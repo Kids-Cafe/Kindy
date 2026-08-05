@@ -148,6 +148,47 @@ public class UserController {
         return ResultDTO.success("SIGNED_IN", rDTO);
     }
 
+    @GetMapping(value = "info")
+    public ResultDTO info(HttpSession session) throws Exception {
+        log.info("Calling info");
+        String id = (String) session.getAttribute("SESSION_USER_ID");
+        if (id == null) return ResultDTO.error("INVALID_ACCESS");
+        UserDTO rDTO = userService.getInfo(UserDTO.fromId(id));
+        if (rDTO == null) return ResultDTO.error("USER_NOT_FOUND");
+        return ResultDTO.success("QUERY_COMPLETE", new UserDTO.PlainUserDTO(
+                rDTO.getId(),
+                rDTO.getName(),
+                rDTO.getEmail(),
+                encryptUtil.decAES128CBC(rDTO.getAddress()),
+                encryptUtil.decAES128CBC(rDTO.getAddressDetail()),
+                encryptUtil.decAES128CBC(rDTO.getPostcode()),
+                rDTO.getCreatedAt(),
+                rDTO.getUpdatedAt()
+        ));
+    }
+
+    @PostMapping(value = "update")
+    public ResultDTO update(HttpServletRequest request, HttpSession session) throws Exception {
+        log.info("Calling update");
+
+        String id = (String) session.getAttribute("SESSION_USER_ID");
+        if (id == null) return ResultDTO.error("INVALID_ACCESS");
+        UserDTO pDTO = UserDTO.fromId(id);
+        pDTO.setAddress(encryptUtil.encAES128CBC(request.getParameter("address")));
+        if (pDTO.getAddress() == null) return ResultDTO.error("MISSING_PARAMETER");
+        pDTO.setAddressDetail(encryptUtil.encAES128CBC(request.getParameter("addressDetail")));
+        pDTO.setPostcode(encryptUtil.encAES128CBC(request.getParameter("postcode")));
+        if (pDTO.getPostcode() == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        try {
+            userService.updateInfo(pDTO);
+            return ResultDTO.success("UPDATE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.toString());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
     @PostMapping(value = "logout")
     public ResultDTO logout(HttpSession session) {
         log.info("Calling logout");

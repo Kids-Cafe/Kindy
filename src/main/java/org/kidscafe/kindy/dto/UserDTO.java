@@ -1,6 +1,7 @@
 package org.kidscafe.kindy.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -25,5 +26,18 @@ public class UserDTO {
         UserDTO result = new UserDTO();
         result.setId(id);
         return result;
+    }
+
+    @Getter
+    @AllArgsConstructor
+    public static class PlainUserDTO {
+        private String id;
+        private String name;
+        private String email;
+        private String address;
+        private String addressDetail;
+        private String postcode;
+        private Long createdAt;
+        private Long updatedAt;
     }
 }
