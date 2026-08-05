@@ -2,7 +2,6 @@ package org.kidscafe.kindy.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.mapper.IUserMapper;
 import org.kidscafe.kindy.service.IUserService;
@@ -69,8 +68,13 @@ public class UserService implements IUserService {
 
     @Transactional
     @Override
-    public int newPassword(UserDTO pDTO) throws Exception {
+    public int newPassword(String id, String password) throws Exception {
         log.info("Calling newPassword");
+
+        byte[] salt = encryptUtil.getSecureSalt();
+        UserDTO pDTO = UserDTO.fromId(id);
+        pDTO.setPassword(encryptUtil.encHashSHA256(password, salt));
+        pDTO.setPasswordSalt(salt);
 
         return userMapper.updatePassword(pDTO);
     }

@@ -14,7 +14,7 @@ public interface IUserService {
 
     UserDTO searchIdOrPassword(UserDTO pDTO) throws Exception;
 
-    int newPassword(UserDTO pDTO) throws Exception;
+    int newPassword(String id, String password) throws Exception;
 
     int updateEmail(UserDTO pDTO) throws Exception;
 

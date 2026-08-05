@@ -10,8 +10,6 @@ import org.kidscafe.kindy.service.IUserService;
 import org.kidscafe.kindy.util.EncryptUtil;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Arrays;
-
 @Slf4j
 @RequestMapping(value = "/api/user")
 @RequiredArgsConstructor
@@ -243,13 +241,7 @@ public class UserController {
         if (password == null) return ResultDTO.error("MISSING_PARAMETER");
         if (password.length() < 8) return ResultDTO.error("INVALID_PARAMETER");
 
-        byte[] salt = encryptUtil.getSecureSalt();
-        UserDTO pDTO = new UserDTO();
-        pDTO.setId(newPassword);
-        pDTO.setPassword(encryptUtil.encHashSHA256(password, salt));
-        pDTO.setPasswordSalt(salt);
-
-        userService.newPassword(pDTO);
+        userService.newPassword(newPassword, password);
 
         session.removeAttribute("NEW_PASSWORD");
 
