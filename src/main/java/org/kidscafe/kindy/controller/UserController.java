@@ -8,9 +8,8 @@ import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.service.IUserService;
 import org.kidscafe.kindy.util.EncryptUtil;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Arrays;
 
 @Slf4j
 @RequestMapping(value = "/api/user")
@@ -30,7 +29,7 @@ public class UserController {
 
         log.info("id: {}", id);
 
-        UserDTO user = userService.getIdExists(UserDTO.fromId(id));
+        UserDTO user = userService.getIdExists(id);
 
         if (user == null) return ResultDTO.error("UNKNOWN_ERROR");
 
@@ -47,9 +46,7 @@ public class UserController {
 
         log.info("email: {}", email);
 
-        UserDTO pDTO = new UserDTO();
-        pDTO.setEmail(email);
-        UserDTO user = userService.getEmailExists(pDTO);
+        UserDTO user = userService.getEmailExists(email);
 
         if (user == null) return ResultDTO.error("UNKNOWN_ERROR");
 
@@ -60,15 +57,14 @@ public class UserController {
     public ResultDTO insertUser(HttpServletRequest request) {
         log.info("Calling insertUser");
 
-        ResultDTO result;
+        UserDTO pDTO = new UserDTO();
+        pDTO.setId(request.getParameter("id"));
+        if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
+        if (pDTO.getId().length() < 4) return ResultDTO.error("INVALID_PARAMETER");
+        pDTO.setName(request.getParameter("name"));
+        if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
 
         try {
-            UserDTO pDTO = new UserDTO();
-            pDTO.setId(request.getParameter("id"));
-            if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
-            if (pDTO.getId().length() < 4) return ResultDTO.error("INVALID_PARAMETER");
-            pDTO.setName(request.getParameter("name"));
-            if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
             String password = request.getParameter("password");
             if (password != null && password.length() < 8) return ResultDTO.error("INVALID_PARAMETER");
             byte[] salt = encryptUtil.getSecureSalt();
@@ -83,26 +79,23 @@ public class UserController {
             if (pDTO.getPostcode() == null) return ResultDTO.error("MISSING_PARAMETER");
 
             log.info("User Register Attempt: {}", pDTO.getId());
-            log.info("Data: {}, {}, {}", password, pDTO.getPasswordSalt(), pDTO.getPassword());
 
             int res = userService.insertUser(pDTO);
 
             log.info("User Register Result: {}", res);
 
             if (res == 1) {
-                result = ResultDTO.success("SIGNUP_COMPLETE");
-            } else if (res == 2) {
-                result = ResultDTO.error("DUPLICATE_ID");
+                return ResultDTO.success("SIGNUP_COMPLETE");
             } else {
-                result = ResultDTO.error("UNKNOWN_ERROR");
+                return ResultDTO.error("UNKNOWN_ERROR");
             }
-
+        } catch (DuplicateKeyException e) {
+            log.info("Duplicate ID: {}", pDTO.getId());
+            return ResultDTO.error("DUPLICATE_ID");
         } catch (Exception e) {
-            result = ResultDTO.error("UNKNOWN_ERROR");
             log.info(e.toString());
+            return ResultDTO.error("UNKNOWN_ERROR");
         }
-
-        return result;
     }
 
     @PostMapping(value = "login")
@@ -110,20 +103,15 @@ public class UserController {
         log.info("Calling login");
 
         try {
-            UserDTO pDTO = new UserDTO();
-
-            pDTO.setId(request.getParameter("id"));
-            if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
+            String id = request.getParameter("id");
+            if (id == null) return ResultDTO.error("MISSING_PARAMETER");
             String password = request.getParameter("password");
             if (password == null) return ResultDTO.error("MISSING_PARAMETER");
 
-            log.info("Login Attempt: {}", pDTO.getId());
+            log.info("Login Attempt: {}", id);
 
-            UserDTO rDTO = userService.login(pDTO);
-
-            if (rDTO == null || rDTO.getPassword() == null) return ResultDTO.error("SIGNIN_NO_MATCHES");
-
-            if (!Arrays.equals(encryptUtil.encHashSHA256(password, rDTO.getPasswordSalt()), rDTO.getPassword())) return ResultDTO.error("SIGNIN_NO_MATCHES");
+            UserDTO rDTO = userService.login(id, password);
+            if (rDTO == null) return ResultDTO.error("SIGNIN_NO_MATCHES");
 
             session.invalidate();
             session = request.getSession(true);
@@ -153,7 +141,7 @@ public class UserController {
         log.info("Calling info");
         String id = (String) session.getAttribute("SESSION_USER_ID");
         if (id == null) return ResultDTO.error("INVALID_ACCESS");
-        UserDTO rDTO = userService.getInfo(UserDTO.fromId(id));
+        UserDTO rDTO = userService.getInfo(id);
         if (rDTO == null) return ResultDTO.error("USER_NOT_FOUND");
         return ResultDTO.success("QUERY_COMPLETE", new UserDTO.PlainUserDTO(
                 rDTO.getId(),
@@ -200,15 +188,12 @@ public class UserController {
     public ResultDTO searchId(HttpServletRequest request) throws Exception {
         log.info("Calling searchId");
 
-        UserDTO pDTO = new UserDTO();
-        pDTO.setName(request.getParameter("name"));
-        if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
-        pDTO.setEmail(request.getParameter("email"));
-        if (pDTO.getEmail() == null) return ResultDTO.error("MISSING_PARAMETER");
+        String name = request.getParameter("name");
+        if (name == null) return ResultDTO.error("MISSING_PARAMETER");
+        String email = request.getParameter("email");
+        if (email == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        log.info(pDTO.toString());
-
-        UserDTO user = userService.searchIdOrPassword(pDTO);
+        UserDTO user = userService.getId(name, email);
 
         return ResultDTO.success(user != null ? "USER_FOUND" : "USER_NOT_FOUND", user);
     }
@@ -217,18 +202,16 @@ public class UserController {
     public ResultDTO searchPassword(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling searchPassword");
 
-        UserDTO pDTO = new UserDTO();
-
-        pDTO.setId(request.getParameter("id"));
-        if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
-        pDTO.setName(request.getParameter("name"));
-        if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
-        pDTO.setEmail(request.getParameter("email"));
-        if (pDTO.getEmail() == null) return ResultDTO.error("MISSING_PARAMETER");
+        String id = request.getParameter("id");
+        if (id == null) return ResultDTO.error("MISSING_PARAMETER");
+        String name = request.getParameter("name");
+        if (name == null) return ResultDTO.error("MISSING_PARAMETER");
+        String email = request.getParameter("email");
+        if (email == null) return ResultDTO.error("MISSING_PARAMETER");
 
         // TODO: add email auth before proceeding
 
-        UserDTO rDTO = userService.searchIdOrPassword(pDTO);
+        UserDTO rDTO = userService.getId(name, email, id);
 
         if (rDTO == null) return ResultDTO.error("USER_NOT_FOUND");
 
@@ -250,17 +233,11 @@ public class UserController {
         if (password == null) return ResultDTO.error("MISSING_PARAMETER");
         if (password.length() < 8) return ResultDTO.error("INVALID_PARAMETER");
 
-        byte[] salt = encryptUtil.getSecureSalt();
-        UserDTO pDTO = new UserDTO();
-        pDTO.setId(newPassword);
-        pDTO.setPassword(encryptUtil.encHashSHA256(password, salt));
-        pDTO.setPasswordSalt(salt);
-
-        userService.newPassword(pDTO);
+        userService.newPassword(newPassword, password);
 
         session.removeAttribute("NEW_PASSWORD");
 
-        return ResultDTO.success("PASSWORD_UPDATED");
+        return ResultDTO.success("UPDATE_COMPLETE");
     }
 
 
@@ -268,20 +245,16 @@ public class UserController {
     public ResultDTO newEmail(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling newEmail");
 
-        String newEmail = (String) session.getAttribute("NEW_EMAIL");
-
-        if (newEmail == null || newEmail.isEmpty()) return ResultDTO.error("INVALID_ACCESS");
+        String id = (String) session.getAttribute("SESSION_USER_ID");
+        if (id == null) return ResultDTO.error("INVALID_ACCESS");
 
         String email = request.getParameter("email");
-
         if (email == null) return ResultDTO.error("MISSING_PARAMETER");
+        String password = request.getParameter("password");
+        if (password == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        UserDTO pDTO = new UserDTO();
-        pDTO.setId(newEmail);
-        pDTO.setEmail(email);
+        userService.updateEmail(id, email, password);
 
-        userService.updateEmail(pDTO);
-
-        return ResultDTO.success("EMAIL_UPDATED");
+        return ResultDTO.success("UPDATE_COMPLETE");
     }
 }
