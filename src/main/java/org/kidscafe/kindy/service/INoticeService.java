@@ -6,14 +6,15 @@ import java.util.List;
 
 public interface INoticeService {
 
-    List<NoticeDTO> getNoticeList() throws Exception;
+    List<NoticeDTO> getNoticeList(NoticeDTO pDTO) throws Exception;
 
-    NoticeDTO getNoticeInfo(NoticeDTO pDTO, boolean type) throws Exception;
+    NoticeDTO getNotice(NoticeDTO pDTO) throws Exception;
 
-    void insertNoticeInfo(NoticeDTO pDTO) throws Exception;
+    void insertNotice(NoticeDTO pDTO) throws Exception;
 
-    void updateNoticeInfo(NoticeDTO pDTO) throws Exception;
+    void updateNotice(NoticeDTO pDTO) throws Exception;
 
-    void deleteNoticeInfo(NoticeDTO pDTO) throws Exception;
+    void deleteNotice(NoticeDTO pDTO) throws Exception;
 
+    boolean hasAccess(String userId, long kindergartenId) throws Exception;
 }

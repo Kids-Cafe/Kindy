@@ -1,32 +1,24 @@
 package org.kidscafe.kindy.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 
 @Getter
 @Setter
+@ToString
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class NoticeDTO {
-
-    private String noticeSeq;
-
+    private Long id;
+    private Long kindergartenId;
+    private Integer num;
     private String title;
+    private String content;
+    private String author;
+    private Boolean pinned;
+    private Long createdAt;
+    private Long updatedAt;
 
-    private String noticeYn;
-
-    private String contents;
-
-    private String userId;
-
-    private String readCnt;
-
-    private String regId;
-
-    private String regDt;
-
-    private String chgId;
-
-    private String chDt;
-
-    private String userName;
-
+    private String authorName;
 }

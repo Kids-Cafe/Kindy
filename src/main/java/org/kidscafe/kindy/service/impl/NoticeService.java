@@ -14,55 +14,50 @@ import java.util.List;
 @RequiredArgsConstructor
 @Service
 public class NoticeService implements INoticeService {
-
     private final INoticeMapper noticeMapper;
 
     @Override
-    public List<NoticeDTO> getNoticeList() throws Exception {
-
+    public List<NoticeDTO> getNoticeList(NoticeDTO pDTO) throws Exception {
         log.info("Calling getNoticeList");
-        return noticeMapper.getNoticeList();
+
+        return noticeMapper.getNoticeList(pDTO);
+    }
+
+    @Override
+    public NoticeDTO getNotice(NoticeDTO pDTO) throws Exception {
+        log.info("Calling getNotice");
+
+        return noticeMapper.getNotice(pDTO);
     }
 
     @Transactional
     @Override
-    public NoticeDTO getNoticeInfo(NoticeDTO pDTO, boolean type) throws Exception {
+    public void insertNotice(NoticeDTO pDTO) throws Exception {
+        log.info("Calling insertNotice");
 
-        log.info("Calling getNoticeInfo");
-        if (type) {
-            log.info("Update ReadCNT");
-            noticeMapper.updateNoticeReadCnt(pDTO);
-        }
-
-        return noticeMapper.getNoticeInfo(pDTO);
-
+        noticeMapper.insertNotice(pDTO);
     }
 
     @Transactional
     @Override
-    public void insertNoticeInfo(NoticeDTO pDTO) throws Exception {
+    public void updateNotice(NoticeDTO pDTO) throws Exception {
+        log.info("Calling updateNotice");
 
-        log.info("Calling insertNoticeInfo");
-
-        noticeMapper.insertNoticeInfo(pDTO);
+        noticeMapper.updateNotice(pDTO);
     }
 
     @Transactional
     @Override
-    public void updateNoticeInfo(NoticeDTO pDTO) throws Exception {
+    public void deleteNotice(NoticeDTO pDTO) throws Exception {
+        log.info("Calling deleteNotice");
 
-        log.info("Calling updateNoticeInfo");
-
-        noticeMapper.updateNoticeInfo(pDTO);
+        noticeMapper.deleteNotice(pDTO);
     }
 
-    @Transactional
     @Override
-    public void deleteNoticeInfo(NoticeDTO pDTO) throws Exception {
-
-        log.info("Calling deleteNoticeInfo");
-
-        noticeMapper.deleteNoticeInfo(pDTO);
-
+    public boolean hasAccess(String userId, long kindergartenId) throws Exception {
+        if (userId == null) return false;
+        // TODO: Check if the user has access
+        return true;
     }
 }

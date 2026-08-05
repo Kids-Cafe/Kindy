@@ -7,17 +7,13 @@ import java.util.List;
 
 @Mapper
 public interface INoticeMapper {
+    List<NoticeDTO> getNoticeList(NoticeDTO pDTO) throws Exception;
 
-    List<NoticeDTO> getNoticeList() throws Exception;
+    int insertNotice(NoticeDTO pDTO) throws Exception;
 
-    void insertNoticeInfo(NoticeDTO pDTO) throws Exception;
+    NoticeDTO getNotice(NoticeDTO pDTO) throws Exception;
 
-    NoticeDTO getNoticeInfo(NoticeDTO pDTO) throws Exception;
+    int updateNotice(NoticeDTO pDTO) throws Exception;
 
-    void updateNoticeReadCnt(NoticeDTO pDTO) throws Exception;
-
-    void updateNoticeInfo(NoticeDTO pDTO) throws Exception;
-
-    void deleteNoticeInfo(NoticeDTO pDTO) throws Exception;
-
+    int deleteNotice(NoticeDTO pDTO) throws Exception;
 }
