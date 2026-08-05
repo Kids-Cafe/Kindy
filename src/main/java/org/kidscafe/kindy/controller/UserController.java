@@ -8,6 +8,7 @@ import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.service.IUserService;
 import org.kidscafe.kindy.util.EncryptUtil;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.*;
 
 @Slf4j
@@ -56,13 +57,14 @@ public class UserController {
     public ResultDTO insertUser(HttpServletRequest request) {
         log.info("Calling insertUser");
 
+        UserDTO pDTO = new UserDTO();
+        pDTO.setId(request.getParameter("id"));
+        if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
+        if (pDTO.getId().length() < 4) return ResultDTO.error("INVALID_PARAMETER");
+        pDTO.setName(request.getParameter("name"));
+        if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
+
         try {
-            UserDTO pDTO = new UserDTO();
-            pDTO.setId(request.getParameter("id"));
-            if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
-            if (pDTO.getId().length() < 4) return ResultDTO.error("INVALID_PARAMETER");
-            pDTO.setName(request.getParameter("name"));
-            if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
             String password = request.getParameter("password");
             if (password != null && password.length() < 8) return ResultDTO.error("INVALID_PARAMETER");
             byte[] salt = encryptUtil.getSecureSalt();
@@ -84,12 +86,12 @@ public class UserController {
 
             if (res == 1) {
                 return ResultDTO.success("SIGNUP_COMPLETE");
-            } else if (res == 2) {
-                return ResultDTO.error("DUPLICATE_ID");
             } else {
                 return ResultDTO.error("UNKNOWN_ERROR");
             }
-
+        } catch (DuplicateKeyException e) {
+            log.info("Duplicate ID: {}", pDTO.getId());
+            return ResultDTO.error("DUPLICATE_ID");
         } catch (Exception e) {
             log.info(e.toString());
             return ResultDTO.error("UNKNOWN_ERROR");
