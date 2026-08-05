@@ -111,10 +111,12 @@ public class UserService implements IUserService {
 
     @Transactional
     @Override
-    public int updateEmail(String id, String email) throws Exception {
+    public int updateEmail(String id, String email, String password) throws Exception {
         log.info("Calling updateEmail");
 
-        UserDTO pDTO = UserDTO.fromId(id);
+        UserDTO pDTO = this.login(id, password);
+        if (pDTO == null) throw new IllegalArgumentException();
+
         pDTO.setEmail(email);
 
         return userMapper.updateEmail(pDTO);

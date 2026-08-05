@@ -22,5 +22,5 @@ public interface IUserService {
 
     int newPassword(String id, String password) throws Exception;
 
-    int updateEmail(String id, String email) throws Exception;
+    int updateEmail(String id, String email, String password) throws Exception;
 }

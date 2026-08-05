@@ -248,15 +248,15 @@ public class UserController {
     public ResultDTO newEmail(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling newEmail");
 
-        String newEmail = (String) session.getAttribute("NEW_EMAIL");
-
-        if (newEmail == null || newEmail.isEmpty()) return ResultDTO.error("INVALID_ACCESS");
+        String id = (String) session.getAttribute("SESSION_USER_ID");
+        if (id == null) return ResultDTO.error("INVALID_ACCESS");
 
         String email = request.getParameter("email");
-
         if (email == null) return ResultDTO.error("MISSING_PARAMETER");
+        String password = request.getParameter("password");
+        if (password == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        userService.updateEmail(newEmail, email);
+        userService.updateEmail(id, email, password);
 
         return ResultDTO.success("EMAIL_UPDATED");
     }
