@@ -23,16 +23,25 @@ public class EncryptUtil {
 
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public byte[] encHashSHA256(String str) {
-        return encHashSHA256(str, "");
+    public byte[] getSecureSalt() {
+        byte[] ivBytes = new byte[16];
+        secureRandom.nextBytes(ivBytes);
+        return ivBytes;
     }
 
-    public byte[] encHashSHA256(String str, String salt) {
+    public byte[] encHashSHA256(String str) {
+        return encHashSHA256(str, (byte[]) null);
+    }
+
+    public byte[] encHashSHA256(String str, String salt) { return encHashSHA256(str, salt.getBytes(StandardCharsets.UTF_8)); }
+
+    public byte[] encHashSHA256(String str, byte[] salt) {
         if (str == null) return null;
-        String plainText = PEPPER + str + salt;
+        String plainText = PEPPER + str;
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            digest.update(plainText.getBytes());
+            digest.update(plainText.getBytes(StandardCharsets.UTF_8));
+            if (salt != null) digest.update(salt);
             return digest.digest();
         } catch (NoSuchAlgorithmException e) {
             return null;

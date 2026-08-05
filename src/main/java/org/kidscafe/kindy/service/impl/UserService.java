@@ -64,4 +64,18 @@ public class UserService implements IUserService {
 
         return userMapper.updateEmail(pDTO);
     }
+
+    @Override
+    public UserDTO getInfo(UserDTO pDTO) throws Exception {
+        log.info("Calling getInfo");
+
+        return userMapper.getInfo(pDTO);
+    }
+
+    @Override
+    public int updateInfo(UserDTO pDTO) throws Exception {
+        log.info("calling updateInfo");
+
+        return userMapper.updateInfo(pDTO);
+    }
 }

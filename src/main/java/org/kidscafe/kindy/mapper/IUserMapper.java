@@ -20,4 +20,7 @@ public interface IUserMapper {
 
     int updateEmail(UserDTO pDTO) throws Exception;
 
+    UserDTO getInfo(UserDTO pDTO) throws Exception;
+
+    int updateInfo(UserDTO pDTO) throws Exception;
 }

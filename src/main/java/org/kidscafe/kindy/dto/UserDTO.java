@@ -1,22 +1,43 @@
 package org.kidscafe.kindy.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
-@Data
+@Getter
+@Setter
+@ToString
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class UserDTO {
     private String id;
     private String name;
     private byte[] password;
-    private byte[] email;
-    private byte[] addr1;
-    private byte[] addr2;
-    private String registerDate;
-    private boolean exists;
+    private byte[] passwordSalt;
+    private String email;
+    private byte[] address;
+    private byte[] addressDetail;
+    private byte[] postcode;
+    private Long createdAt;
+    private Long updatedAt;
+    private Boolean exists;
     public static UserDTO fromId(String id) {
         UserDTO result = new UserDTO();
         result.setId(id);
         return result;
+    }
+
+    @Getter
+    @AllArgsConstructor
+    public static class PlainUserDTO {
+        private String id;
+        private String name;
+        private String email;
+        private String address;
+        private String addressDetail;
+        private String postcode;
+        private Long createdAt;
+        private Long updatedAt;
     }
 }
