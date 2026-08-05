@@ -14,6 +14,9 @@ public class KindergartenDTO {
     private String name;
     private String brn;
     private String owner;
+    private String address;
+    private String addressDetail;
+    private String postcode;
     private Long createdAt;
     private Long updatedAt;
 }
