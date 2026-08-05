@@ -2,71 +2,64 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="org.kidscafe.kindy.mapper.IUserMapper">
-    <resultMap id="UserMap" type="UserDTO">
-        <id property="id" column="C_ID" />
-        <result property="name" column="C_NAME" />
-        <result property="password" column="C_PASSWORD" />
-        <result property="addr1" column="C_ADDR1" />
-        <result property="addr2" column="C_ADDR2" />
-        <result property="registerDate" column="C_REGISTER_DATE" />
-        <result property="exists" column="C_EXISTS" />
-    </resultMap>
-
-    <select id="getIdExists" parameterType="UserDTO" resultMap="UserMap">
-        SELECT COUNT(*) > 0 AS C_EXISTS
+    <select id="getIdExists" parameterType="UserDTO" resultType="UserDTO">
+        SELECT COUNT(*) > 0 AS `EXISTS`
         FROM T_USER
-        WHERE C_ID = #{id}
+        WHERE ID = #{id}
     </select>
 
-    <select id="getEmailExists" parameterType="UserDTO" resultMap="UserMap">
-        SELECT COUNT(*) > 0 AS C_EXISTS
+    <select id="getEmailExists" parameterType="UserDTO" resultType="UserDTO">
+        SELECT COUNT(*) > 0 AS `EXISTS`
         FROM T_USER
-        WHERE C_EMAIL = #{email}
+        WHERE EMAIL = #{email}
     </select>
 
     <insert id="insertUser" parameterType="UserDTO">
         INSERT INTO T_USER
-        (C_ID,
-         C_NAME,
-         C_PASSWORD,
-         C_EMAIL,
-         C_ADDR1,
-         C_ADDR2)
+        (ID,
+         NAME,
+         PASSWORD,
+         PASSWORD_SALT,
+         EMAIL,
+         ADDRESS,
+         ADDRESS_DETAIL,
+         POSTCODE)
         VALUES (#{id},
                 #{name},
                 #{password},
+                #{passwordSalt},
                 #{email},
-                #{addr1},
-                #{addr2})
+                #{address},
+                #{addressDetail},
+                #{postcode})
     </insert>
 
-    <select id="getLogin" parameterType="UserDTO" resultMap="UserMap">
-        SELECT C_ID, C_NAME, C_EMAIL, TRUE AS C_EXISTS
+    <select id="getLogin" parameterType="UserDTO" resultType="UserDTO">
+        SELECT ID, NAME, PASSWORD, PASSWORD_SALT
         FROM T_USER
-        WHERE C_ID = #{id}
-          AND C_PASSWORD = #{password}
+        WHERE ID = #{id}
     </select>
 
-    <select id="getId" parameterType="UserDTO" resultMap="UserMap">
-        SELECT C_ID, C_NAME, C_EMAIL, TRUE AS C_EXISTS
+    <select id="getId" parameterType="UserDTO" resultType="UserDTO">
+        SELECT ID, NAME, EMAIL
         FROM T_USER
-        WHERE C_NAME = #{name}
-            AND C_EMAIL = #{email}
+        WHERE NAME = #{name}
+          AND EMAIL = #{email}
         <if test="id neq null and id neq '' ">
-            AND C_ID = #{id}
+          AND ID = #{id}
         </if>
     </select>
 
     <update id="updatePassword" parameterType="UserDTO">
         UPDATE T_USER
-        SET C_PASSWORD = #{password}
-        WHERE C_ID = #{id}
+        SET PASSWORD = #{password}, PASSWORD_SALT = #{passwordSalt}
+        WHERE ID = #{id}
     </update>
 
     <update id="updateEmail" parameterType="UserDTO">
         UPDATE T_USER
-        SET C_EMAIL = #{email}
-        WHERE C_ID = #{id}
+        SET EMAIL = #{email}
+        WHERE ID = #{id}
     </update>
 
 </mapper>

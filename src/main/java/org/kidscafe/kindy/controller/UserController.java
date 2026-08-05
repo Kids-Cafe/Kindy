@@ -10,6 +10,8 @@ import org.kidscafe.kindy.service.IUserService;
 import org.kidscafe.kindy.util.EncryptUtil;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
+
 @Slf4j
 @RequestMapping(value = "/api/user")
 @RequiredArgsConstructor
@@ -30,7 +32,9 @@ public class UserController {
 
         UserDTO user = userService.getIdExists(UserDTO.fromId(id));
 
-        return ResultDTO.success(user != null ? "USER_FOUND" : "USER_NOT_FOUND", user);
+        if (user == null) return ResultDTO.error("UNKNOWN_ERROR");
+
+        return ResultDTO.success("QUERY_COMPLETE", user);
     }
 
     @GetMapping(value = "getEmailExists")
@@ -44,10 +48,12 @@ public class UserController {
         log.info("email: {}", email);
 
         UserDTO pDTO = new UserDTO();
-        pDTO.setEmail(encryptUtil.encAES128CBC(email));
+        pDTO.setEmail(email);
         UserDTO user = userService.getEmailExists(pDTO);
 
-        return ResultDTO.success(user != null ? "USER_FOUND" : "USER_NOT_FOUND", user);
+        if (user == null) return ResultDTO.error("UNKNOWN_ERROR");
+
+        return ResultDTO.success("QUERY_COMPLETE", user);
     }
 
     @PostMapping(value = "insertUser")
@@ -63,17 +69,25 @@ public class UserController {
             if (pDTO.getId().length() < 4) return ResultDTO.error("INVALID_PARAMETER");
             pDTO.setName(request.getParameter("name"));
             if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
-            pDTO.setPassword(encryptUtil.encHashSHA256(request.getParameter("password")));
-            pDTO.setEmail(encryptUtil.encAES128CBC(request.getParameter("email")));
-            pDTO.setAddr1(encryptUtil.encAES128CBC(request.getParameter("addr1")));
-            if (pDTO.getAddr1() == null) return ResultDTO.error("MISSING_PARAMETER");
-            pDTO.setAddr2(encryptUtil.encAES128CBC(request.getParameter("addr2")));
+            String password = request.getParameter("password");
+            if (password != null && password.length() < 8) return ResultDTO.error("INVALID_PARAMETER");
+            byte[] salt = encryptUtil.getSecureSalt();
+            pDTO.setPassword(encryptUtil.encHashSHA256(password, salt));
+            if (pDTO.getPassword() != null) pDTO.setPasswordSalt(salt);
+            pDTO.setEmail(request.getParameter("email"));
+            if (pDTO.getEmail() == null) return ResultDTO.error("MISSING_PARAMETER");
+            pDTO.setAddress(encryptUtil.encAES128CBC(request.getParameter("address")));
+            if (pDTO.getAddress() == null) return ResultDTO.error("MISSING_PARAMETER");
+            pDTO.setAddressDetail(encryptUtil.encAES128CBC(request.getParameter("addressDetail")));
+            pDTO.setPostcode(encryptUtil.encAES128CBC(request.getParameter("postcode")));
+            if (pDTO.getPostcode() == null) return ResultDTO.error("MISSING_PARAMETER");
 
-            log.info(pDTO.toString());
+            log.info("User Register Attempt: {}", pDTO.getId());
+            log.info("Data: {}, {}, {}", password, pDTO.getPasswordSalt(), pDTO.getPassword());
 
             int res = userService.insertUser(pDTO);
 
-            log.info("User Register Result: " + res);
+            log.info("User Register Result: {}", res);
 
             if (res == 1) {
                 result = ResultDTO.success("SIGNUP_COMPLETE");
@@ -100,14 +114,16 @@ public class UserController {
 
             pDTO.setId(request.getParameter("id"));
             if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
-            pDTO.setPassword(encryptUtil.encHashSHA256(request.getParameter("password")));
-            if (pDTO.getPassword() == null) return ResultDTO.error("MISSING_PARAMETER");
+            String password = request.getParameter("password");
+            if (password == null) return ResultDTO.error("MISSING_PARAMETER");
 
             log.info("Login Attempt: {}", pDTO.getId());
 
             UserDTO rDTO = userService.login(pDTO);
 
-            if (rDTO == null) return ResultDTO.error("SIGNIN_NO_MATCHES");
+            if (rDTO == null || rDTO.getPassword() == null) return ResultDTO.error("SIGNIN_NO_MATCHES");
+
+            if (!Arrays.equals(encryptUtil.encHashSHA256(password, rDTO.getPasswordSalt()), rDTO.getPassword())) return ResultDTO.error("SIGNIN_NO_MATCHES");
 
             session.invalidate();
             session = request.getSession(true);
@@ -146,7 +162,7 @@ public class UserController {
         UserDTO pDTO = new UserDTO();
         pDTO.setName(request.getParameter("name"));
         if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
-        pDTO.setEmail(encryptUtil.encAES128CBC(request.getParameter("email")));
+        pDTO.setEmail(request.getParameter("email"));
         if (pDTO.getEmail() == null) return ResultDTO.error("MISSING_PARAMETER");
 
         log.info(pDTO.toString());
@@ -166,7 +182,7 @@ public class UserController {
         if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
         pDTO.setName(request.getParameter("name"));
         if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
-        pDTO.setEmail(encryptUtil.encAES128CBC(request.getParameter("email")));
+        pDTO.setEmail(request.getParameter("email"));
         if (pDTO.getEmail() == null) return ResultDTO.error("MISSING_PARAMETER");
 
         // TODO: add email auth before proceeding
@@ -191,11 +207,13 @@ public class UserController {
         String password = request.getParameter("password");
 
         if (password == null) return ResultDTO.error("MISSING_PARAMETER");
-        if (password.length() < 4) return ResultDTO.error("INVALID_PARAMETER");
+        if (password.length() < 8) return ResultDTO.error("INVALID_PARAMETER");
 
+        byte[] salt = encryptUtil.getSecureSalt();
         UserDTO pDTO = new UserDTO();
         pDTO.setId(newPassword);
-        pDTO.setPassword(encryptUtil.encHashSHA256(password));
+        pDTO.setPassword(encryptUtil.encHashSHA256(password, salt));
+        pDTO.setPasswordSalt(salt);
 
         userService.newPassword(pDTO);
 
@@ -219,7 +237,7 @@ public class UserController {
 
         UserDTO pDTO = new UserDTO();
         pDTO.setId(newEmail);
-        pDTO.setEmail(encryptUtil.encAES128CBC(email));
+        pDTO.setEmail(email);
 
         userService.updateEmail(pDTO);
 
