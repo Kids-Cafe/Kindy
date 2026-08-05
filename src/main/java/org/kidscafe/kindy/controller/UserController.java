@@ -30,7 +30,7 @@ public class UserController {
 
         log.info("id: {}", id);
 
-        UserDTO user = userService.getIdExists(UserDTO.fromId(id));
+        UserDTO user = userService.getIdExists(id);
 
         if (user == null) return ResultDTO.error("UNKNOWN_ERROR");
 
@@ -47,9 +47,7 @@ public class UserController {
 
         log.info("email: {}", email);
 
-        UserDTO pDTO = new UserDTO();
-        pDTO.setEmail(email);
-        UserDTO user = userService.getEmailExists(pDTO);
+        UserDTO user = userService.getEmailExists(email);
 
         if (user == null) return ResultDTO.error("UNKNOWN_ERROR");
 
@@ -110,20 +108,15 @@ public class UserController {
         log.info("Calling login");
 
         try {
-            UserDTO pDTO = new UserDTO();
-
-            pDTO.setId(request.getParameter("id"));
-            if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
+            String id = request.getParameter("id");
+            if (id == null) return ResultDTO.error("MISSING_PARAMETER");
             String password = request.getParameter("password");
             if (password == null) return ResultDTO.error("MISSING_PARAMETER");
 
-            log.info("Login Attempt: {}", pDTO.getId());
+            log.info("Login Attempt: {}", id);
 
-            UserDTO rDTO = userService.login(pDTO);
-
-            if (rDTO == null || rDTO.getPassword() == null) return ResultDTO.error("SIGNIN_NO_MATCHES");
-
-            if (!Arrays.equals(encryptUtil.encHashSHA256(password, rDTO.getPasswordSalt()), rDTO.getPassword())) return ResultDTO.error("SIGNIN_NO_MATCHES");
+            UserDTO rDTO = userService.login(id, password);
+            if (rDTO == null) return ResultDTO.error("SIGNIN_NO_MATCHES");
 
             session.invalidate();
             session = request.getSession(true);

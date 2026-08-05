@@ -2,28 +2,36 @@ package org.kidscafe.kindy.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.mapper.IUserMapper;
 import org.kidscafe.kindy.service.IUserService;
+import org.kidscafe.kindy.util.EncryptUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Arrays;
 
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class UserService implements IUserService {
     private final IUserMapper userMapper;
+    private final EncryptUtil encryptUtil;
 
     @Override
-    public UserDTO getIdExists(UserDTO pDTO) throws Exception {
+    public UserDTO getIdExists(String id) throws Exception {
         log.info("Calling getIdExists");
 
-        return userMapper.getIdExists(pDTO);
+        return userMapper.getIdExists(UserDTO.fromId(id));
     }
 
     @Override
-    public UserDTO getEmailExists(UserDTO pDTO) throws Exception {
+    public UserDTO getEmailExists(String email) throws Exception {
         log.info("Calling getEmailExists");
+
+        UserDTO pDTO = new UserDTO();
+        pDTO.setEmail(email);
 
         return userMapper.getEmailExists(pDTO);
     }
@@ -37,10 +45,19 @@ public class UserService implements IUserService {
     }
 
     @Override
-    public UserDTO login(UserDTO pDTO) throws Exception {
+    public UserDTO login(String id, String password) throws Exception {
         log.info("Calling login");
 
-        return userMapper.getLogin(pDTO);
+        UserDTO rDTO = userMapper.getLogin(UserDTO.fromId(id));
+
+        if (rDTO == null || rDTO.getPassword() == null) return null;
+
+        if (!Arrays.equals(encryptUtil.encHashSHA256(password, rDTO.getPasswordSalt()), rDTO.getPassword())) return null;
+
+        rDTO.setPassword(null);
+        rDTO.setPasswordSalt(null);
+
+        return rDTO;
     }
 
     @Override
