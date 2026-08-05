@@ -56,8 +56,6 @@ public class UserController {
     public ResultDTO insertUser(HttpServletRequest request) {
         log.info("Calling insertUser");
 
-        ResultDTO result;
-
         try {
             UserDTO pDTO = new UserDTO();
             pDTO.setId(request.getParameter("id"));
@@ -85,19 +83,17 @@ public class UserController {
             log.info("User Register Result: {}", res);
 
             if (res == 1) {
-                result = ResultDTO.success("SIGNUP_COMPLETE");
+                return ResultDTO.success("SIGNUP_COMPLETE");
             } else if (res == 2) {
-                result = ResultDTO.error("DUPLICATE_ID");
+                return ResultDTO.error("DUPLICATE_ID");
             } else {
-                result = ResultDTO.error("UNKNOWN_ERROR");
+                return ResultDTO.error("UNKNOWN_ERROR");
             }
 
         } catch (Exception e) {
-            result = ResultDTO.error("UNKNOWN_ERROR");
             log.info(e.toString());
+            return ResultDTO.error("UNKNOWN_ERROR");
         }
-
-        return result;
     }
 
     @PostMapping(value = "login")
