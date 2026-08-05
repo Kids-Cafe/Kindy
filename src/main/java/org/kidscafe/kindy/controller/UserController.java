@@ -235,7 +235,7 @@ public class UserController {
 
         session.removeAttribute("NEW_PASSWORD");
 
-        return ResultDTO.success("PASSWORD_UPDATED");
+        return ResultDTO.success("UPDATE_COMPLETE");
     }
 
 
@@ -253,6 +253,6 @@ public class UserController {
 
         userService.updateEmail(id, email, password);
 
-        return ResultDTO.success("EMAIL_UPDATED");
+        return ResultDTO.success("UPDATE_COMPLETE");
     }
 }
