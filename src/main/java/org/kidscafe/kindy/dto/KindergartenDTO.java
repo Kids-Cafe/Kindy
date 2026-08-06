@@ -19,4 +19,10 @@ public class KindergartenDTO {
     private String postcode;
     private Long createdAt;
     private Long updatedAt;
+
+    public static KindergartenDTO fromId(long id) {
+        KindergartenDTO result = new KindergartenDTO();
+        result.setId(id);
+        return result;
+    }
 }

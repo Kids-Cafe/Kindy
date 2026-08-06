@@ -23,4 +23,11 @@ public class RelationshipDTO {
     private Long createdAt;
     private Long updatedAt;
     private Boolean exists;
+
+    public static RelationshipDTO fromId(long kindergartenId, String userId) {
+        RelationshipDTO result = new RelationshipDTO();
+        result.setKindergartenId(kindergartenId);
+        result.setUserId(userId);
+        return result;
+    }
 }
