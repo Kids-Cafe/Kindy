@@ -16,11 +16,6 @@ import org.springframework.web.bind.annotation.*;
 public class NoticeController {
     private final INoticeService noticeService;
 
-    @GetMapping(value = "testForceInjectSessionUserId")
-    public void testForceInjectSessionUserId(HttpSession session) {
-        session.setAttribute("SESSION_USER_ID", "TEST");
-    }
-
     @GetMapping(value = "list")
     public ResultDTO list(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling list");
@@ -36,16 +31,12 @@ public class NoticeController {
 
         if (!noticeService.hasAccess(userId, kindergartenId)) return ResultDTO.error("INVALID_ACCESS");
 
-        NoticeDTO pDTO = new NoticeDTO();
-        pDTO.setKindergartenId(kindergartenId);
-        log.info(pDTO.toString());
-
-        return ResultDTO.success("QUERY_COMPLETE", noticeService.getNoticeList(pDTO));
+        return ResultDTO.success("QUERY_COMPLETE", noticeService.getList(kindergartenId));
     }
 
-    @PostMapping(value = "insert")
-    public ResultDTO insert(HttpServletRequest request, HttpSession session) {
-        log.info("Calling insert");
+    @PostMapping(value = "create")
+    public ResultDTO create(HttpServletRequest request, HttpSession session) {
+        log.info("Calling create");
 
         try {
             long kindergartenId;
@@ -67,7 +58,7 @@ public class NoticeController {
             pDTO.setContent(request.getParameter("content"));
             log.info(pDTO.toString());
 
-            noticeService.insertNotice(pDTO);
+            noticeService.create(pDTO);
 
             return ResultDTO.success("REGISTER_COMPLETE");
         } catch (Exception e) {
@@ -90,19 +81,15 @@ public class NoticeController {
 
         if (!noticeService.hasAccess(userId, kindergartenId)) return ResultDTO.error("INVALID_ACCESS");
 
-        NoticeDTO pDTO = new NoticeDTO();
-        pDTO.setKindergartenId(kindergartenId);
         try {
-            pDTO.setNum(Integer.parseInt(request.getParameter("num")));
+            NoticeDTO rDTO = noticeService.getInfo(kindergartenId, Integer.parseInt(request.getParameter("num")));
+
+            if (rDTO == null) return ResultDTO.error("NOTICE_NOT_FOUND");
+
+            return ResultDTO.success("QUERY_COMPLETE", rDTO);
         } catch (NumberFormatException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         }
-        log.info(pDTO.toString());
-
-        NoticeDTO rDTO = noticeService.getNotice(pDTO);
-        if (rDTO == null) return ResultDTO.error("NOTICE_NOT_FOUND");
-
-        return ResultDTO.success("QUERY_COMPLETE", rDTO);
     }
 
     @PostMapping(value = "edit")
@@ -133,7 +120,7 @@ public class NoticeController {
             pDTO.setContent(request.getParameter("content"));
             log.info(pDTO.toString());
 
-            noticeService.updateNotice(pDTO);
+            noticeService.update(pDTO);
 
             return ResultDTO.success("EDIT_COMPLETE");
         } catch (Exception e) {
@@ -158,16 +145,11 @@ public class NoticeController {
 
             if (!noticeService.hasAccess(userId, kindergartenId)) return ResultDTO.error("INVALID_ACCESS");
 
-            NoticeDTO pDTO = new NoticeDTO();
-            pDTO.setKindergartenId(kindergartenId);
             try {
-                pDTO.setNum(Integer.parseInt(request.getParameter("num")));
+                noticeService.delete(kindergartenId, Integer.parseInt(request.getParameter("num")));
             } catch (NumberFormatException e) {
                 return ResultDTO.error("INVALID_PARAMETER");
             }
-            log.info(pDTO.toString());
-
-            noticeService.deleteNotice(pDTO);
 
             return ResultDTO.success("DELETE_COMPLETE");
         } catch (Exception e) {
