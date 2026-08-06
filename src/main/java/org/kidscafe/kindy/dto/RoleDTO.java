@@ -10,9 +10,9 @@ import lombok.ToString;
 @ToString
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class RoleDTO {
-    Long id;
-    Long kindergartenId;
-    String name;
+    private Long id;
+    private Long kindergartenId;
+    private String name;
 
     public enum Permission {
         MANAGE_NOTICE,

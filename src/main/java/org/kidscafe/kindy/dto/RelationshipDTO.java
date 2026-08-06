@@ -15,11 +15,12 @@ public class RelationshipDTO {
         TEACHER
     }
 
-    Long kindergartenId;
-    String userId;
-    Type type;
-    Long roleId;
-    String nickname;
-    Long createdAt;
-    Long updatedAt;
+    private Long kindergartenId;
+    private String userId;
+    private Type type;
+    private Long roleId;
+    private String nickname;
+    private Long createdAt;
+    private Long updatedAt;
+    private Boolean exists;
 }
