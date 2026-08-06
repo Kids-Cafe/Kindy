@@ -8,7 +8,7 @@ import java.util.List;
 @Mapper
 public interface IRelationshipMapper {
     RelationshipDTO getExists(RelationshipDTO pDTO) throws Exception;
-    List<RelationshipDTO> getList() throws Exception;
+    List<RelationshipDTO> getList(RelationshipDTO pDTO) throws Exception;
     RelationshipDTO getInfo(RelationshipDTO pDTO) throws Exception;
     int insert(RelationshipDTO pDTO) throws Exception;
     int updateRole(RelationshipDTO pDTO) throws Exception;
