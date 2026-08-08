@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.KindergartenDTO;
+import org.kidscafe.kindy.dto.RelationshipDTO;
 import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.service.IKindergartenService;
 import org.springframework.dao.DuplicateKeyException;
@@ -21,14 +22,18 @@ public class KindergartenController {
     private final IKindergartenService kindergartenService;
 
     @GetMapping(value = "list")
-    public ResultDTO list() throws Exception {
+    public ResultDTO list() {
         log.info("Calling list");
 
-        return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getList());
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getList());
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
     }
 
     @GetMapping(value = "info")
-    public ResultDTO info(HttpServletRequest request, HttpSession session) throws Exception {
+    public ResultDTO info(HttpServletRequest request, HttpSession session) {
         log.info("Calling info");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
@@ -43,13 +48,15 @@ public class KindergartenController {
 
         // TODO: check if the user has access
 
-        KindergartenDTO rDTO = kindergartenService.getInfo(id);
-
-        return ResultDTO.success("QUERY_COMPLETE", rDTO);
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getInfo(id));
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
     }
 
     @PostMapping(value = "create")
-    public ResultDTO create(HttpServletRequest request, HttpSession session) throws Exception {
+    public ResultDTO create(HttpServletRequest request, HttpSession session) {
         log.info("Calling create");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
@@ -122,5 +129,154 @@ public class KindergartenController {
             log.info(e.toString());
             return ResultDTO.error("UNKNOWN_ERROR");
         }
+    }
+
+    @PostMapping(value = "join")
+    public ResultDTO join() {
+        // TODO
+        return ResultDTO.error("NOT_AVAILABLE");
+    }
+
+    @PostMapping(value = "invite")
+    public ResultDTO invite() {
+        // TODO
+        return ResultDTO.error("NOT_AVAILABLE");
+    }
+
+    @PostMapping(value = "add")
+    public ResultDTO add(HttpServletRequest request, HttpSession session) {
+        // TODO: Replace this with join() and invite()
+        log.info("Calling add");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+        String userId = request.getParameter("userId");
+        if (userId == null) return ResultDTO.error("MISSING_PARAMETER");
+        String type = request.getParameter("type");
+
+        // TODO: Permission check
+
+        try {
+            kindergartenService.add(id, userId, RelationshipDTO.Type.valueOf(type));
+        } catch (IllegalArgumentException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+        return ResultDTO.success("ADD_COMPLETE");
+    }
+
+    @PostMapping(value = "assign")
+    public ResultDTO assign(HttpServletRequest request, HttpSession session) {
+        log.info("Calling assign");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+        String userId = request.getParameter("userId");
+        if (userId == null) return ResultDTO.error("MISSING_PARAMETER");
+        long roleId;
+        try {
+            roleId = Long.parseLong(request.getParameter("roleId"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        try {
+            kindergartenService.assign(id, userId, roleId);
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+        return ResultDTO.success("ASSIGN_COMPLETE");
+    }
+
+    @PostMapping(value = "setNickname")
+    public ResultDTO setNickname(HttpServletRequest request, HttpSession session) {
+        // TODO: Replace this with join() and invite()
+        log.info("Calling setNickname");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+        String userId = request.getParameter("userId");
+        if (userId == null) return ResultDTO.error("MISSING_PARAMETER");
+        String nickname = request.getParameter("nickname");
+
+        try {
+            kindergartenService.setNickname(id, userId, nickname);
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+        return ResultDTO.success("UPDATE_COMPLETE");
+    }
+
+    @PostMapping(value = "remove")
+    public ResultDTO remove(HttpServletRequest request, HttpSession session) {
+        log.info("Calling remove");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+        String userId = request.getParameter("userId");
+        if (userId == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        // TODO: Permission check
+
+        try {
+            kindergartenService.remove(id, userId);
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+        return ResultDTO.success("REMOVE_COMPLETE");
+    }
+
+    @GetMapping(value = "has")
+    public ResultDTO has(HttpServletRequest request, HttpSession session) throws Exception {
+        log.info("Calling has");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+        String userId = request.getParameter("userId");
+        if (userId == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        // TODO: Permission check
+
+        RelationshipDTO rDTO = kindergartenService.has(id, userId);
+
+        if (rDTO == null) return ResultDTO.error("UNKNOWN_ERROR");
+
+        return ResultDTO.success("QUERY_COMPLETE", rDTO);
     }
 }
