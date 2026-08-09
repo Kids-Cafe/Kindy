@@ -131,6 +131,29 @@ public class KindergartenController {
         }
     }
 
+    @PostMapping(value = "members")
+    public ResultDTO members(HttpServletRequest request, HttpSession session) {
+        log.info("Calling members");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        // TODO: Permission check
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getMembers(id));
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
     @PostMapping(value = "join")
     public ResultDTO join() {
         // TODO
@@ -278,5 +301,28 @@ public class KindergartenController {
         if (rDTO == null) return ResultDTO.error("UNKNOWN_ERROR");
 
         return ResultDTO.success("QUERY_COMPLETE", rDTO);
+    }
+
+    @PostMapping(value = "roles")
+    public ResultDTO roles(HttpServletRequest request, HttpSession session) {
+        log.info("Calling roles");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        // TODO: Permission check
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getRoles(id));
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
     }
 }
