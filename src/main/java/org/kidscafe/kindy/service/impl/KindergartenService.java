@@ -60,6 +60,16 @@ public class KindergartenService implements IKindergartenService {
     }
 
     @Override
+    public List<RelationshipDTO> getMembers(long id) throws Exception {
+        log.info("Calling getMembers");
+
+        RelationshipDTO pDTO = new RelationshipDTO();
+        pDTO.setKindergartenId(id);
+
+        return relationshipMapper.getList(pDTO);
+    }
+
+    @Override
     public int add(long id, String userId, RelationshipDTO.Type type) throws Exception {
         log.info("Calling add");
 
@@ -101,6 +111,16 @@ public class KindergartenService implements IKindergartenService {
         log.info("Calling has");
 
         return relationshipMapper.getExists(RelationshipDTO.fromId(id, userId));
+    }
+
+    @Override
+    public List<RoleDTO> getRoles(long id) throws Exception {
+        log.info("Calling createRole");
+
+        RoleDTO pDTO = new RoleDTO();
+        pDTO.setKindergartenId(id);
+
+        return roleMapper.getList(pDTO);
     }
 
     @Override

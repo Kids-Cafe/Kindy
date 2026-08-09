@@ -10,7 +10,7 @@
     </select>
 
     <select id="getList" parameterType="RelationshipDTO" resultType="RelationshipDTO">
-        SELECT KINDERGARTEN_ID, USER_ID, TYPE, NICKNAME
+        SELECT USER_ID, TYPE, NICKNAME
         FROM T_RELATIONSHIP
         WHERE KINDERGARTEN_ID = #{kindergartenId}
     </select>

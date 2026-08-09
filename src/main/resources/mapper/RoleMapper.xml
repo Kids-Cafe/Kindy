@@ -3,7 +3,7 @@
 
 <mapper namespace="org.kidscafe.kindy.mapper.IRoleMapper">
     <select id="getList" parameterType="RelationshipDTO" resultType="RelationshipDTO">
-        SELECT ID, KINDERGARTEN_ID, NAME
+        SELECT ID, NAME
         FROM T_ROLE
         WHERE KINDERGARTEN_ID = #{kindergartenId}
     </select>

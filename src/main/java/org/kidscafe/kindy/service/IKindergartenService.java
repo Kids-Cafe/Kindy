@@ -12,11 +12,13 @@ public interface IKindergartenService {
     int create(KindergartenDTO pDTO) throws Exception;
     int update(KindergartenDTO pDTO) throws Exception;
     int transfer(long id, String userId) throws Exception;
+    List<RelationshipDTO> getMembers(long id) throws Exception;
     int add(long id, String userId, RelationshipDTO.Type type) throws Exception;
     int assign(long id, String userId, long roleId) throws Exception;
     int setNickname(long id, String userId, String nickname) throws Exception;
     int remove(long id, String userId) throws Exception;
     RelationshipDTO has(long id, String userId) throws Exception;
+    List<RoleDTO> getRoles(long id) throws Exception;
     int createRole(long id, String name) throws Exception;
     int addRolePermission(long roleId, RoleDTO.Permission permission) throws Exception;
     int removeRolePermission(long roleId, RoleDTO.Permission permission) throws Exception;
