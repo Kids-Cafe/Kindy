@@ -131,7 +131,7 @@ public class KindergartenController {
         }
     }
 
-    @PostMapping(value = "members")
+    @GetMapping(value = "members")
     public ResultDTO members(HttpServletRequest request, HttpSession session) {
         log.info("Calling members");
 
@@ -303,7 +303,7 @@ public class KindergartenController {
         }
     }
 
-    @PostMapping(value = "roles")
+    @GetMapping(value = "roles")
     public ResultDTO roles(HttpServletRequest request, HttpSession session) {
         log.info("Calling roles");
 
@@ -328,7 +328,7 @@ public class KindergartenController {
 
     @PostMapping(value = "role/create")
     public ResultDTO createRole(HttpServletRequest request, HttpSession session) {
-        log.info("Calling roles");
+        log.info("Calling createRole");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
