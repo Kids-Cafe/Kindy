@@ -279,7 +279,7 @@ public class KindergartenController {
     }
 
     @GetMapping(value = "has")
-    public ResultDTO has(HttpServletRequest request, HttpSession session) throws Exception {
+    public ResultDTO has(HttpServletRequest request, HttpSession session) {
         log.info("Calling has");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
@@ -296,11 +296,11 @@ public class KindergartenController {
 
         // TODO: Permission check
 
-        RelationshipDTO rDTO = kindergartenService.has(id, userId);
-
-        if (rDTO == null) return ResultDTO.error("UNKNOWN_ERROR");
-
-        return ResultDTO.success("QUERY_COMPLETE", rDTO);
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", kindergartenService.has(id, userId));
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
     }
 
     @PostMapping(value = "roles")
@@ -324,5 +324,33 @@ public class KindergartenController {
         } catch (Exception e) {
             return ResultDTO.error("UNKNOWN_ERROR");
         }
+    }
+
+    @PostMapping(value = "role/create")
+    public ResultDTO createRole(HttpServletRequest request, HttpSession session) {
+        log.info("Calling roles");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+        String name = request.getParameter("name");
+        if (name == null) return ResultDTO.error("INVALID_PARAMETER");
+
+        // TODO: Permission check
+
+        try {
+            kindergartenService.createRole(id, name);
+        } catch (DuplicateKeyException e) {
+            return ResultDTO.error("DUPLICATE_KEY");
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+        return ResultDTO.success("CREATE_COMPLETE");
     }
 }
