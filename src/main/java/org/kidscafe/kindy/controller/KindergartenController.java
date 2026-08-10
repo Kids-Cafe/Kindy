@@ -7,12 +7,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.KindergartenDTO;
 import org.kidscafe.kindy.dto.RelationshipDTO;
 import org.kidscafe.kindy.dto.ResultDTO;
+import org.kidscafe.kindy.dto.RoleDTO;
 import org.kidscafe.kindy.service.IKindergartenService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @Slf4j
 @RequestMapping(value = "/api/kindergarten")
@@ -22,7 +25,7 @@ public class KindergartenController {
     private final IKindergartenService kindergartenService;
 
     @GetMapping(value = "list")
-    public ResultDTO list() {
+    public ResultDTO<List<KindergartenDTO>> list() {
         log.info("Calling list");
 
         try {
@@ -33,7 +36,7 @@ public class KindergartenController {
     }
 
     @GetMapping(value = "info")
-    public ResultDTO info(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<KindergartenDTO> info(HttpServletRequest request, HttpSession session) {
         log.info("Calling info");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
@@ -56,7 +59,7 @@ public class KindergartenController {
     }
 
     @PostMapping(value = "create")
-    public ResultDTO create(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<Void> create(HttpServletRequest request, HttpSession session) {
         log.info("Calling create");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
@@ -93,14 +96,14 @@ public class KindergartenController {
     }
 
     @PostMapping(value = "update")
-    public ResultDTO update() {
+    public ResultDTO<Void> update() {
         log.info("Calling update");
         // TODO: BRN verification
         return ResultDTO.error("NOT_AVAILABLE");
     }
 
     @PostMapping(value = "transfer")
-    public ResultDTO transfer(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<Void> transfer(HttpServletRequest request, HttpSession session) {
         log.info("Calling transfer");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
@@ -132,7 +135,7 @@ public class KindergartenController {
     }
 
     @GetMapping(value = "members")
-    public ResultDTO members(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<List<RelationshipDTO>> members(HttpServletRequest request, HttpSession session) {
         log.info("Calling members");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
@@ -155,19 +158,19 @@ public class KindergartenController {
     }
 
     @PostMapping(value = "join")
-    public ResultDTO join() {
+    public ResultDTO<Void> join() {
         // TODO
         return ResultDTO.error("NOT_AVAILABLE");
     }
 
     @PostMapping(value = "invite")
-    public ResultDTO invite() {
+    public ResultDTO<Void> invite() {
         // TODO
         return ResultDTO.error("NOT_AVAILABLE");
     }
 
     @PostMapping(value = "add")
-    public ResultDTO add(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<Void> add(HttpServletRequest request, HttpSession session) {
         // TODO: Replace this with join() and invite()
         log.info("Calling add");
 
@@ -197,7 +200,7 @@ public class KindergartenController {
     }
 
     @PostMapping(value = "assign")
-    public ResultDTO assign(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<Void> assign(HttpServletRequest request, HttpSession session) {
         log.info("Calling assign");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
@@ -227,7 +230,7 @@ public class KindergartenController {
     }
 
     @PostMapping(value = "setNickname")
-    public ResultDTO setNickname(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<Void> setNickname(HttpServletRequest request, HttpSession session) {
         // TODO: Replace this with join() and invite()
         log.info("Calling setNickname");
 
@@ -253,7 +256,7 @@ public class KindergartenController {
     }
 
     @PostMapping(value = "remove")
-    public ResultDTO remove(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<Void> remove(HttpServletRequest request, HttpSession session) {
         log.info("Calling remove");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
@@ -279,7 +282,7 @@ public class KindergartenController {
     }
 
     @GetMapping(value = "has")
-    public ResultDTO has(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<RelationshipDTO> has(HttpServletRequest request, HttpSession session) {
         log.info("Calling has");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
@@ -304,7 +307,7 @@ public class KindergartenController {
     }
 
     @GetMapping(value = "roles")
-    public ResultDTO roles(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<List<RoleDTO>> roles(HttpServletRequest request, HttpSession session) {
         log.info("Calling roles");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
@@ -327,7 +330,7 @@ public class KindergartenController {
     }
 
     @PostMapping(value = "role/create")
-    public ResultDTO createRole(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<Void> createRole(HttpServletRequest request, HttpSession session) {
         log.info("Calling createRole");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");

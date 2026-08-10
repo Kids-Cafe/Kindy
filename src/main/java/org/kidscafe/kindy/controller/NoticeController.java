@@ -9,6 +9,8 @@ import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.service.INoticeService;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @Slf4j
 @RequestMapping(value = "/api/notice")
 @RequiredArgsConstructor
@@ -17,7 +19,7 @@ public class NoticeController {
     private final INoticeService noticeService;
 
     @GetMapping(value = "list")
-    public ResultDTO list(HttpServletRequest request, HttpSession session) throws Exception {
+    public ResultDTO<List<NoticeDTO>> list(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling list");
 
         long kindergartenId;
@@ -35,7 +37,7 @@ public class NoticeController {
     }
 
     @PostMapping(value = "create")
-    public ResultDTO create(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<Void> create(HttpServletRequest request, HttpSession session) {
         log.info("Calling create");
 
         try {
@@ -68,7 +70,7 @@ public class NoticeController {
     }
 
     @GetMapping(value = "info")
-    public ResultDTO info(HttpServletRequest request, HttpSession session) throws Exception {
+    public ResultDTO<NoticeDTO> info(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling info");
         long kindergartenId;
         try {
@@ -93,7 +95,7 @@ public class NoticeController {
     }
 
     @PostMapping(value = "edit")
-    public ResultDTO edit(HttpServletRequest request, HttpSession session) throws Exception {
+    public ResultDTO<Void> edit(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling edit");
 
         try {
@@ -130,7 +132,7 @@ public class NoticeController {
     }
 
     @PostMapping(value = "delete")
-    public ResultDTO delete(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<Void> delete(HttpServletRequest request, HttpSession session) {
         log.info("Calling delete");
 
         try {

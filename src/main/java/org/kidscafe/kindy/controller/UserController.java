@@ -20,7 +20,7 @@ public class UserController {
     private final EncryptUtil encryptUtil;
 
     @GetMapping(value = "getIdExists")
-    public ResultDTO getIdExists(HttpServletRequest request) throws Exception {
+    public ResultDTO<UserDTO> getIdExists(HttpServletRequest request) throws Exception {
         log.info("Calling getIdExists");
 
         String id = request.getParameter("id");
@@ -37,7 +37,7 @@ public class UserController {
     }
 
     @GetMapping(value = "getEmailExists")
-    public ResultDTO getEmailExists(HttpServletRequest request) throws Exception {
+    public ResultDTO<UserDTO> getEmailExists(HttpServletRequest request) throws Exception {
         log.info("Calling getEmailExists");
 
         String email = request.getParameter("email");
@@ -54,7 +54,7 @@ public class UserController {
     }
 
     @PostMapping(value = "insertUser")
-    public ResultDTO insertUser(HttpServletRequest request) {
+    public ResultDTO<Void> insertUser(HttpServletRequest request) {
         log.info("Calling insertUser");
 
         UserDTO pDTO = new UserDTO();
@@ -99,7 +99,7 @@ public class UserController {
     }
 
     @PostMapping(value = "login")
-    public ResultDTO login(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<Void> login(HttpServletRequest request, HttpSession session) {
         log.info("Calling login");
 
         try {
@@ -127,7 +127,7 @@ public class UserController {
     }
 
     @GetMapping(value = "session")
-    public ResultDTO session(HttpSession session) {
+    public ResultDTO<UserDTO> session(HttpSession session) {
         log.info("Calling session");
         String id = (String) session.getAttribute("SESSION_USER_ID");
         if (id == null) return ResultDTO.success("NOT_SIGNED_IN", null);
@@ -137,7 +137,7 @@ public class UserController {
     }
 
     @GetMapping(value = "info")
-    public ResultDTO info(HttpSession session) throws Exception {
+    public ResultDTO<UserDTO.PlainUserDTO> info(HttpSession session) throws Exception {
         log.info("Calling info");
         String id = (String) session.getAttribute("SESSION_USER_ID");
         if (id == null) return ResultDTO.error("INVALID_ACCESS");
@@ -156,7 +156,7 @@ public class UserController {
     }
 
     @PostMapping(value = "update")
-    public ResultDTO update(HttpServletRequest request, HttpSession session) throws Exception {
+    public ResultDTO<Void> update(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling update");
 
         String id = (String) session.getAttribute("SESSION_USER_ID");
@@ -178,14 +178,14 @@ public class UserController {
     }
 
     @PostMapping(value = "logout")
-    public ResultDTO logout(HttpSession session) {
+    public ResultDTO<Void> logout(HttpSession session) {
         log.info("Calling logout");
         session.invalidate();
         return ResultDTO.success("SIGNOUT_COMPLETE");
     }
 
     @PostMapping(value = "searchId")
-    public ResultDTO searchId(HttpServletRequest request) throws Exception {
+    public ResultDTO<UserDTO> searchId(HttpServletRequest request) throws Exception {
         log.info("Calling searchId");
 
         String name = request.getParameter("name");
@@ -199,7 +199,7 @@ public class UserController {
     }
 
     @PostMapping(value = "searchPassword")
-    public ResultDTO searchPassword(HttpServletRequest request, HttpSession session) throws Exception {
+    public ResultDTO<UserDTO> searchPassword(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling searchPassword");
 
         String id = request.getParameter("id");
@@ -221,7 +221,7 @@ public class UserController {
     }
 
     @PostMapping(value = "newPassword")
-    public ResultDTO newPassword(HttpServletRequest request, HttpSession session) throws Exception {
+    public ResultDTO<Void> newPassword(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling newPassword");
 
         String newPassword = (String) session.getAttribute("NEW_PASSWORD");
@@ -242,7 +242,7 @@ public class UserController {
 
 
     @PostMapping(value = "newEmail")
-    public ResultDTO newEmail(HttpServletRequest request, HttpSession session) throws Exception {
+    public ResultDTO<Void> newEmail(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling newEmail");
 
         String id = (String) session.getAttribute("SESSION_USER_ID");
