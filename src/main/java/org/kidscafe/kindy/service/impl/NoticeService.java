@@ -17,45 +17,58 @@ public class NoticeService implements INoticeService {
     private final INoticeMapper noticeMapper;
 
     @Override
-    public List<NoticeDTO> getNoticeList(NoticeDTO pDTO) throws Exception {
-        log.info("Calling getNoticeList");
+    public List<NoticeDTO> getList(long kindergartenId) throws Exception {
+        log.info("Calling getList");
 
-        return noticeMapper.getNoticeList(pDTO);
+        NoticeDTO pDTO = new NoticeDTO();
+        pDTO.setKindergartenId(kindergartenId);
+
+        return noticeMapper.getList(pDTO);
     }
 
     @Override
-    public NoticeDTO getNotice(NoticeDTO pDTO) throws Exception {
-        log.info("Calling getNotice");
+    public NoticeDTO getInfo(long kindergartenId, int num) throws Exception {
+        log.info("Calling getInfo");
 
-        return noticeMapper.getNotice(pDTO);
-    }
+        NoticeDTO pDTO = new NoticeDTO();
+        pDTO.setKindergartenId(kindergartenId);
+        pDTO.setNum(num);
 
-    @Transactional
-    @Override
-    public void insertNotice(NoticeDTO pDTO) throws Exception {
-        log.info("Calling insertNotice");
-
-        noticeMapper.insertNotice(pDTO);
-    }
-
-    @Transactional
-    @Override
-    public void updateNotice(NoticeDTO pDTO) throws Exception {
-        log.info("Calling updateNotice");
-
-        noticeMapper.updateNotice(pDTO);
+        return noticeMapper.getInfo(pDTO);
     }
 
     @Transactional
     @Override
-    public void deleteNotice(NoticeDTO pDTO) throws Exception {
-        log.info("Calling deleteNotice");
+    public void create(NoticeDTO pDTO) throws Exception {
+        log.info("Calling insert");
 
-        noticeMapper.deleteNotice(pDTO);
+        noticeMapper.insert(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public void update(NoticeDTO pDTO) throws Exception {
+        log.info("Calling update");
+
+        noticeMapper.update(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public void delete(long kindergartenId, int num) throws Exception {
+        log.info("Calling delete");
+
+        NoticeDTO pDTO = new NoticeDTO();
+        pDTO.setKindergartenId(kindergartenId);
+        pDTO.setNum(num);
+
+        noticeMapper.delete(pDTO);
     }
 
     @Override
     public boolean hasAccess(String userId, long kindergartenId) throws Exception {
+        log.info("Calling hasAccess");
+
         if (userId == null) return false;
         // TODO: Check if the user has access
         return true;
