@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.kidscafe.kindy.mapper.IKindergartenMapper">
+    <select id="getList" resultType="KindergartenDTO">
+        SELECT ID, NAME, ADDRESS
+        FROM T_KINDERGARTEN
+    </select>
+
+    <select id="getInfo" parameterType="KindergartenDTO" resultType="KindergartenDTO">
+        SELECT ID, NAME, BRN, OWNER, ADDRESS, ADDRESS_DETAIL, POSTCODE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
+        FROM T_KINDERGARTEN
+        WHERE ID = #{id}
+    </select>
+
+    <insert id="insert" parameterType="KindergartenDTO">
+        INSERT INTO T_KINDERGARTEN(NAME, BRN, OWNER, ADDRESS, ADDRESS_DETAIL, POSTCODE)
+        VALUES (#{name}, #{brn}, #{owner}, #{address}, #{addressDetail}, #{postcode})
+    </insert>
+
+    <update id="update" parameterType="KindergartenDTO">
+        UPDATE T_KINDERGARTEN
+        SET NAME = #{name}, ADDRESS = #{address}, ADDRESS_DETAIL = #{addressDetail}, POSTCODE = #{postcode}
+        WHERE ID = #{id}
+    </update>
+
+    <update id="updateOwner" parameterType="KindergartenDTO">
+        UPDATE T_KINDERGARTEN
+        SET OWNER = #{owner}
+        WHERE ID = #{id}
+    </update>
+
+    <delete id="delete" parameterType="KindergartenDTO">
+        DELETE FROM T_KINDERGARTEN
+        WHERE ID = #{id}
+    </delete>
+</mapper>
