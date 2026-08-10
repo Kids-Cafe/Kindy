@@ -19,7 +19,7 @@ public class ResultDTO<T> {
 
     public static <T> ResultDTO<T> success(String code, T data) { return new ResultDTO<T>(Status.success, code, data); }
 
-    public static ResultDTO<Void> success(String code) {
+    public static <T> ResultDTO<T> success(String code) {
         return success(code, null);
     }
 
@@ -27,5 +27,5 @@ public class ResultDTO<T> {
         return new ResultDTO<T>(Status.error, code, data);
     }
 
-    public static ResultDTO<Void> error(String code) { return error(code, null); }
+    public static <T> ResultDTO<T> error(String code) { return error(code, null); }
 }
