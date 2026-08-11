@@ -1,6 +1,7 @@
 package org.kidscafe.kindy.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -22,6 +23,10 @@ public class RoleDTO {
         MANAGE_SUPPLY
     }
 
+    @Getter
+    @ToString
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class PermissionDTO {
         Long roleId;
         Permission permission;
