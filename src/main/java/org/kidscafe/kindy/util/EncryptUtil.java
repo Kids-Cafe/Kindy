@@ -37,14 +37,14 @@ public class EncryptUtil {
 
     public byte[] encHashSHA256(String str, byte[] salt) {
         if (str == null) return null;
-        String plainText = PEPPER + str;
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            digest.update(plainText.getBytes(StandardCharsets.UTF_8));
+            digest.update(PEPPER.getBytes(StandardCharsets.UTF_8));
+            digest.update(str.getBytes(StandardCharsets.UTF_8));
             if (salt != null) digest.update(salt);
             return digest.digest();
         } catch (NoSuchAlgorithmException e) {
-            return null;
+            throw new IllegalStateException();
         }
     }
 
