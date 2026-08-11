@@ -1,8 +1,6 @@
 package org.kidscafe.kindy.service;
 
-import org.kidscafe.kindy.dto.KindergartenDTO;
-import org.kidscafe.kindy.dto.RelationshipDTO;
-import org.kidscafe.kindy.dto.RoleDTO;
+import org.kidscafe.kindy.dto.*;
 
 import java.util.List;
 
@@ -24,4 +22,14 @@ public interface IKindergartenService {
     boolean hasRolePermission(long roleId, RoleDTO.Permission permission) throws Exception;
     int addRolePermission(long roleId, RoleDTO.Permission permission) throws Exception;
     int removeRolePermission(long roleId, RoleDTO.Permission permission) throws Exception;
+    List<NoticeDTO> getNotices(long id) throws Exception;
+    NoticeDTO getNoticeInfo(long noticeId) throws Exception;
+    int createNotice(NoticeDTO pDTO) throws Exception;
+    int updateNotice(NoticeDTO pDTO) throws Exception;
+    int deleteNotice(long noticeId) throws Exception;
+    List<ScheduleDTO> getSchedules(long id) throws Exception;
+    ScheduleDTO getScheduleInfo(long scheduleId) throws Exception;
+    int createSchedule(ScheduleDTO pDTO) throws Exception;
+    int updateSchedule(ScheduleDTO pDTO) throws Exception;
+    int deleteSchedule(long scheduleId) throws Exception;
 }
