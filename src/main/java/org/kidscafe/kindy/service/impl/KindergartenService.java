@@ -6,6 +6,7 @@ import org.kidscafe.kindy.dto.KindergartenDTO;
 import org.kidscafe.kindy.dto.RelationshipDTO;
 import org.kidscafe.kindy.dto.RoleDTO;
 import org.kidscafe.kindy.mapper.IKindergartenMapper;
+import org.kidscafe.kindy.mapper.IPermissionMapper;
 import org.kidscafe.kindy.mapper.IRelationshipMapper;
 import org.kidscafe.kindy.mapper.IRoleMapper;
 import org.kidscafe.kindy.service.IKindergartenService;
@@ -20,6 +21,7 @@ public class KindergartenService implements IKindergartenService {
     private final IKindergartenMapper kindergartenMapper;
     private final IRelationshipMapper relationshipMapper;
     private final IRoleMapper roleMapper;
+    private final IPermissionMapper permissionMapper;
 
     @Override
     public List<KindergartenDTO> getList() throws Exception {
@@ -30,7 +32,7 @@ public class KindergartenService implements IKindergartenService {
 
     @Override
     public KindergartenDTO getInfo(long id) throws Exception {
-        log.info("Calling getList");
+        log.info("Calling getInfo");
 
         return kindergartenMapper.getInfo(KindergartenDTO.fromId(id));
     }
@@ -115,7 +117,7 @@ public class KindergartenService implements IKindergartenService {
 
     @Override
     public List<RoleDTO> getRoles(long id) throws Exception {
-        log.info("Calling createRole");
+        log.info("Calling getRoles");
 
         RoleDTO pDTO = new RoleDTO();
         pDTO.setKindergartenId(id);
@@ -135,14 +137,34 @@ public class KindergartenService implements IKindergartenService {
     }
 
     @Override
+    public List<RoleDTO.Permission> getRolePermissions(long roleId) throws Exception {
+        log.info("Calling getRolePermissions");
+
+        return permissionMapper.getList(new RoleDTO.PermissionDTO(roleId, null)).stream().map(RoleDTO.PermissionDTO::getPermission).toList();
+    }
+
+    @Override
+    public boolean hasRolePermission(long roleId, RoleDTO.Permission permission) throws Exception {
+        log.info("Calling hasRolePermission");
+
+        return permissionMapper.getInfo(new RoleDTO.PermissionDTO(roleId, permission)) != null;
+    }
+
+    @Override
     public int addRolePermission(long roleId, RoleDTO.Permission permission) throws Exception {
-        // TODO
-        return 0;
+        log.info("Calling addRolePermission");
+
+        RoleDTO.PermissionDTO pDTO = new RoleDTO.PermissionDTO(roleId, permission);
+
+        return permissionMapper.insert(pDTO);
     }
 
     @Override
     public int removeRolePermission(long roleId, RoleDTO.Permission permission) throws Exception {
-        // TODO
-        return 0;
+        log.info("Calling removeRolePermission");
+
+        RoleDTO.PermissionDTO pDTO = new RoleDTO.PermissionDTO(roleId, permission);
+
+        return permissionMapper.delete(pDTO);
     }
 }
