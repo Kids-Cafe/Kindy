@@ -143,6 +143,27 @@ public class KindergartenService implements IKindergartenService {
     }
 
     @Override
+    public int renameRole(long roleId, String name) throws Exception {
+        log.info("Calling renameRole");
+
+        RoleDTO pDTO = new RoleDTO();
+        pDTO.setId(roleId);
+        pDTO.setName(name);
+
+        return roleMapper.updateName(pDTO);
+    }
+
+    @Override
+    public int deleteRole(long roleId) throws Exception {
+        log.info("Calling deleteRole");
+
+        RoleDTO pDTO = new RoleDTO();
+        pDTO.setId(roleId);
+
+        return roleMapper.delete(pDTO);
+    }
+
+    @Override
     public List<RoleDTO.Permission> getRolePermissions(long roleId) throws Exception {
         log.info("Calling getRolePermissions");
 

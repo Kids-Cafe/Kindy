@@ -18,6 +18,8 @@ public interface IKindergartenService {
     RelationshipDTO has(long id, String userId) throws Exception;
     List<RoleDTO> getRoles(long id) throws Exception;
     int createRole(long id, String name) throws Exception;
+    int renameRole(long roleId, String name) throws Exception;
+    int deleteRole(long roleId) throws Exception;
     List<RoleDTO.Permission> getRolePermissions(long roleId) throws Exception;
     boolean hasRolePermission(long roleId, RoleDTO.Permission permission) throws Exception;
     int addRolePermission(long roleId, RoleDTO.Permission permission) throws Exception;
