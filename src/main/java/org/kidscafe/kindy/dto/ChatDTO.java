@@ -1,6 +1,7 @@
 package org.kidscafe.kindy.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -16,6 +17,21 @@ public class ChatDTO {
     private String host;
     private Long createdAt;
 
+    @Getter
+    @AllArgsConstructor
+    public static class QueryDTO {
+        private Long id;
+        private Integer minNum;
+        private Integer maxNum;
+        private Long minTimestamp;
+        private Long maxTimestamp;
+        private Integer maxAmount;
+    }
+
+    @Getter
+    @ToString
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class MessageDTO {
         public enum Type {
             MANAGE_NOTICE,

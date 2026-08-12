@@ -5,13 +5,19 @@
     <select id="selectList" resultType="ChatDTO">
         SELECT ID, KINDERGARTEN_ID, CLIENT, HOST, CREATED_AT
         FROM T_CHAT
-        WHERE KINDERGARTEN_ID = #{kindergartenId} OR #{kindergartenId} IS NULL
+        WHERE KINDERGARTEN_ID = #{kindergartenId}
+    </select>
+
+    <select id="selectListByUser" resultType="ChatDTO">
+        SELECT ID, KINDERGARTEN_ID, CLIENT, HOST, CREATED_AT
+        FROM T_CHAT
+        WHERE CLIENT = #{client} OR HOST = #{host}
     </select>
 
     <select id="select" resultType="ChatDTO">
         SELECT ID, KINDERGARTEN_ID, CLIENT, HOST, CREATED_AT
         FROM T_CHAT
-        WHERE KINDERGARTEN_ID = #{kindergartenId} OR #{kindergartenId} IS NULL
+        WHERE KINDERGARTEN_ID = #{kindergartenId}
     </select>
 
     <insert id="insert">

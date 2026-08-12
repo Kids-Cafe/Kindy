@@ -6,6 +6,18 @@
         SELECT CHAT_ID, NUM, TYPE, CONTENT, CREATED_AT
         FROM T_CHAT_MESSAGE
         WHERE CHAT_ID = #{chatId}
+        <if test="minNum != null">
+            AND NUM &#x3E;= #{minNum}
+        </if>
+        <if test="maxNum != null">
+            AND NUM &#x3C;= #{maxNum}
+        </if>
+        <if test="minTimestamp != null">
+            AND CREATED_AT &#x3E;= #{minTimestamp}
+        </if>
+        <if test="maxTimestamp != null">
+            AND CREATED_AT &#x3C;= #{maxTimestamp}
+        </if>
     </select>
 
     <select id="select" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">

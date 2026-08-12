@@ -8,6 +8,7 @@ import java.util.List;
 @Mapper
 public interface IChatMapper {
     List<ChatDTO> selectList(ChatDTO pDTO) throws Exception;
+    List<ChatDTO> selectListByUser(ChatDTO pDTO) throws Exception;
     ChatDTO select(ChatDTO pDTO) throws Exception;
     int insert(ChatDTO pDTO) throws Exception;
     int delete(ChatDTO pDTO) throws Exception;
