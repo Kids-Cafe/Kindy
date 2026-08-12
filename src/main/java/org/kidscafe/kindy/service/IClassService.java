@@ -3,7 +3,7 @@ package org.kidscafe.kindy.service;
 import org.kidscafe.kindy.dto.ClassDTO;
 import org.kidscafe.kindy.dto.PhotoDTO;
 import org.kidscafe.kindy.dto.SupplyDTO;
-import org.springframework.web.multipart.MultipartFile;
+import org.springframework.core.io.Resource;
 
 import java.util.List;
 
@@ -14,7 +14,7 @@ public interface IClassService {
     int updateName(long id, String name) throws Exception;
     int delete(long id) throws Exception;
     List<PhotoDTO> getPhotos(long id) throws Exception;
-    int addPhoto(long id, MultipartFile file) throws Exception;
+    int addPhoto(long id, Resource resource) throws Exception;
     int removePhoto(long photoId) throws Exception;
     List<SupplyDTO> getSupplies(long id) throws Exception;
     SupplyDTO getSupplyInfo(long supplyId) throws Exception;
