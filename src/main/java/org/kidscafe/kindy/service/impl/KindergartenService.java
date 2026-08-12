@@ -2,15 +2,11 @@ package org.kidscafe.kindy.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.kidscafe.kindy.dto.KindergartenDTO;
-import org.kidscafe.kindy.dto.RelationshipDTO;
-import org.kidscafe.kindy.dto.RoleDTO;
-import org.kidscafe.kindy.mapper.IKindergartenMapper;
-import org.kidscafe.kindy.mapper.IPermissionMapper;
-import org.kidscafe.kindy.mapper.IRelationshipMapper;
-import org.kidscafe.kindy.mapper.IRoleMapper;
+import org.kidscafe.kindy.dto.*;
+import org.kidscafe.kindy.mapper.*;
 import org.kidscafe.kindy.service.IKindergartenService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -22,6 +18,8 @@ public class KindergartenService implements IKindergartenService {
     private final IRelationshipMapper relationshipMapper;
     private final IRoleMapper roleMapper;
     private final IPermissionMapper permissionMapper;
+    private final INoticeMapper noticeMapper;
+    private final IScheduleMapper scheduleMapper;
 
     @Override
     public List<KindergartenDTO> getList() throws Exception {
@@ -37,6 +35,7 @@ public class KindergartenService implements IKindergartenService {
         return kindergartenMapper.getInfo(KindergartenDTO.fromId(id));
     }
 
+    @Transactional
     @Override
     public int create(KindergartenDTO pDTO) throws Exception {
         log.info("Calling create");
@@ -44,6 +43,7 @@ public class KindergartenService implements IKindergartenService {
         return kindergartenMapper.insert(pDTO);
     }
 
+    @Transactional
     @Override
     public int update(KindergartenDTO pDTO) throws Exception {
         log.info("Calling update");
@@ -51,6 +51,7 @@ public class KindergartenService implements IKindergartenService {
         return kindergartenMapper.update(pDTO);
     }
 
+    @Transactional
     @Override
     public int transfer(long id, String userId) throws Exception {
         log.info("Calling transfer");
@@ -71,6 +72,7 @@ public class KindergartenService implements IKindergartenService {
         return relationshipMapper.getList(pDTO);
     }
 
+    @Transactional
     @Override
     public int add(long id, String userId, RelationshipDTO.Type type) throws Exception {
         log.info("Calling add");
@@ -81,6 +83,7 @@ public class KindergartenService implements IKindergartenService {
         return relationshipMapper.insert(pDTO);
     }
 
+    @Transactional
     @Override
     public int assign(long id, String userId, long roleId) throws Exception {
         log.info("Calling assign");
@@ -91,6 +94,7 @@ public class KindergartenService implements IKindergartenService {
         return relationshipMapper.updateRole(pDTO);
     }
 
+    @Transactional
     @Override
     public int setNickname(long id, String userId, String nickname) throws Exception {
         log.info("Calling setNickname");
@@ -101,6 +105,7 @@ public class KindergartenService implements IKindergartenService {
         return relationshipMapper.updateNickname(pDTO);
     }
 
+    @Transactional
     @Override
     public int remove(long id, String userId) throws Exception {
         log.info("Calling remove");
@@ -125,6 +130,7 @@ public class KindergartenService implements IKindergartenService {
         return roleMapper.getList(pDTO);
     }
 
+    @Transactional
     @Override
     public int createRole(long id, String name) throws Exception {
         log.info("Calling createRole");
@@ -150,6 +156,7 @@ public class KindergartenService implements IKindergartenService {
         return permissionMapper.getInfo(new RoleDTO.PermissionDTO(roleId, permission)) != null;
     }
 
+    @Transactional
     @Override
     public int addRolePermission(long roleId, RoleDTO.Permission permission) throws Exception {
         log.info("Calling addRolePermission");
@@ -159,6 +166,7 @@ public class KindergartenService implements IKindergartenService {
         return permissionMapper.insert(pDTO);
     }
 
+    @Transactional
     @Override
     public int removeRolePermission(long roleId, RoleDTO.Permission permission) throws Exception {
         log.info("Calling removeRolePermission");
@@ -166,5 +174,100 @@ public class KindergartenService implements IKindergartenService {
         RoleDTO.PermissionDTO pDTO = new RoleDTO.PermissionDTO(roleId, permission);
 
         return permissionMapper.delete(pDTO);
+    }
+
+    @Override
+    public List<NoticeDTO> getNotices(long id) throws Exception {
+        log.info("Calling getNotices");
+
+        NoticeDTO pDTO = new NoticeDTO();
+        pDTO.setKindergartenId(id);
+
+        return noticeMapper.getList(pDTO);
+    }
+
+    @Override
+    public NoticeDTO getNoticeInfo(long noticeId) throws Exception {
+        log.info("Calling getNoticeInfo");
+
+        NoticeDTO pDTO = new NoticeDTO();
+        pDTO.setId(noticeId);
+
+        return noticeMapper.getInfo(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int createNotice(NoticeDTO pDTO) throws Exception {
+        log.info("Calling createNotice");
+
+        return noticeMapper.insert(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int updateNotice(NoticeDTO pDTO) throws Exception {
+        log.info("Calling updateNotice");
+
+        return noticeMapper.update(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int deleteNotice(long noticeId) throws Exception {
+        log.info("Calling deleteNotice");
+
+        NoticeDTO pDTO = new NoticeDTO();
+        pDTO.setId(noticeId);
+
+        return noticeMapper.delete(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public List<ScheduleDTO> getSchedules(long id) throws Exception {
+        log.info("Calling getSchedules");
+
+        ScheduleDTO pDTO = new ScheduleDTO();
+        pDTO.setKindergartenId(id);
+
+        return scheduleMapper.selectList(pDTO);
+    }
+
+    @Override
+    public ScheduleDTO getScheduleInfo(long scheduleId) throws Exception {
+        log.info("Calling getScheduleInfo");
+
+        ScheduleDTO pDTO = new ScheduleDTO();
+        pDTO.setId(scheduleId);
+
+        return scheduleMapper.select(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int createSchedule(ScheduleDTO pDTO) throws Exception {
+        log.info("Calling createSchedule");
+
+        return scheduleMapper.insert(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int updateSchedule(ScheduleDTO pDTO) throws Exception {
+        log.info("Calling updateSchedule");
+
+        return scheduleMapper.update(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int deleteSchedule(long scheduleId) throws Exception {
+        log.info("Calling deleteSchedule");
+
+        ScheduleDTO pDTO = new ScheduleDTO();
+        pDTO.setId(scheduleId);
+
+        return scheduleMapper.delete(pDTO);
     }
 }
