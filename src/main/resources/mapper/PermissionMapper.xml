@@ -1,27 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="org.kidscafe.kindy.mapper.IPermissionMapper">
-
-    <select id="getList" parameterType="RoleDTO.PermissionDTO" resultType="RoleDTO.PermissionDTO">
+<mapper namespace="IPermissionMapper">
+    <select id="getList" resultType="org.kidscafe.kindy.dto.RoleDTO$PermissionDTO">
         SELECT PERMISSION
         FROM T_PERMISSION
         WHERE ROLE_ID = #{roleId}
     </select>
 
-    <select id="getInfo" parameterType="RoleDTO.PermissionDTO" resultType="RoleDTO.PermissionDTO">
+    <select id="getInfo" resultType="org.kidscafe.kindy.dto.RoleDTO$PermissionDTO">
         SELECT ROLE_ID, PERMISSION
         FROM T_PERMISSION
         WHERE ROLE_ID = #{roleId}
           AND PERMISSION = #{permission}
     </select>
 
-    <insert id="insert" parameterType="RoleDTO.PermissionDTO">
+    <insert id="insert">
         INSERT INTO T_PERMISSION(ROLE_ID, PERMISSION)
         VALUES (#{roleId}, #{permission})
     </insert>
 
-    <delete id="delete" parameterType="RoleDTO.PermissionDTO">
+    <delete id="delete">
         DELETE FROM T_PERMISSION
         WHERE ROLE_ID = #{roleId}
           AND PERMISSION = #{permission}

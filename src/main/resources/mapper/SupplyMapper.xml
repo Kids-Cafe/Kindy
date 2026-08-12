@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="ISupplyMapper">
+    <select id="selectList" resultType="SupplyDTO">
+        SELECT ID, DATE, TITLE
+        FROM T_SUPPLY
+        WHERE CLASS_ID = #{classId}
+    </select>
+
+    <select id="select" resultType="SupplyDTO">
+        SELECT ID, CLASS_ID, DATE, TITLE, CONTENT, CREATED_AT, UPDATED_AT
+        FROM T_SUPPLY
+        WHERE ID = #{id}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO T_SUPPLY(CLASS_ID, DATE, TITLE, CONTENT)
+        VALUES (#{classId}, #{date}, #{title}, #{content})
+    </insert>
+
+    <update id="update">
+        UPDATE T_SUPPLY
+        SET DATE = #{date}, TITLE = #{title}, CONTENT = #{content}
+        WHERE ID = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM T_SUPPLY
+        WHERE ID = #{id}
+    </delete>
+</mapper>

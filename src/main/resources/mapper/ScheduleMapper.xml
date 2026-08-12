@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="IScheduleMapper">
+    <select id="selectList" resultType="ScheduleDTO">
+        SELECT ID, DATE, TIME, TITLE, CLASS_ID
+        FROM T_SCHEDULE
+        WHERE KINDERGARTEN_ID = #{kindergartenId}
+    </select>
+
+    <select id="select" resultType="ScheduleDTO">
+        SELECT ID, KINDERGARTEN_ID, DATE, TIME, TITLE, CLASS_ID, CREATED_AT, UPDATED_AT
+        FROM T_SCHEDULE
+        WHERE ID = #{id}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO T_SCHEDULE(KINDERGARTEN_ID, DATE, TIME, TITLE, CLASS_ID)
+        VALUES (#{kindergartenId}, #{date}, #{time}, #{title}, #{classId})
+    </insert>
+
+    <update id="update">
+        UPDATE T_SCHEDULE
+        SET DATE = #{date}, TIME = #{time}, TITLE = #{title}
+        WHERE ID = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM T_SCHEDULE
+        WHERE ID = #{id}
+    </delete>
+</mapper>

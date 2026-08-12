@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="org.kidscafe.kindy.mapper.INoticeMapper">
-    <select id="getList" parameterType="NoticeDTO" resultType="NoticeDTO">
+<mapper namespace="INoticeMapper">
+    <select id="getList" resultType="NoticeDTO">
         SELECT KINDERGARTEN_ID, NUM, TITLE, PINNED, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
         FROM T_NOTICE
         WHERE KINDERGARTEN_ID = #{kindergartenId}
         ORDER BY PINNED DESC, NUM DESC
     </select>
 
-    <insert id="insert" parameterType="NoticeDTO">
+    <insert id="insert">
         INSERT INTO T_NOTICE(KINDERGARTEN_ID, NUM, TITLE, PINNED, CONTENT, AUTHOR)
         VALUES (#{kindergartenId}, (SELECT IFNULL(MAX(N.NUM), 0) + 1 FROM T_NOTICE N WHERE N.KINDERGARTEN_ID = #{kindergartenId}), #{title}, #{pinned}, #{content}, #{author})
     </insert>
@@ -23,13 +23,13 @@
         WHERE KINDERGARTEN_ID = #{kindergartenId} AND NUM = #{num}
     </select>
 
-    <update id="update" parameterType="NoticeDTO">
+    <update id="update">
         UPDATE T_NOTICE
         SET TITLE = #{title}, PINNED = #{pinned}, CONTENT = #{content}
         WHERE KINDERGARTEN_ID = #{kindergartenId} AND NUM = #{num}
     </update>
 
-    <delete id="delete" parameterType="NoticeDTO">
+    <delete id="delete">
         DELETE FROM T_NOTICE
         WHERE KINDERGARTEN_ID = #{kindergartenId} AND NUM = #{num}
     </delete>
