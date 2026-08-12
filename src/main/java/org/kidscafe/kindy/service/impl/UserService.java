@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.DiaryDTO;
 import org.kidscafe.kindy.dto.FamilyDTO;
 import org.kidscafe.kindy.dto.UserDTO;
+import org.kidscafe.kindy.mapper.IDiaryMapper;
+import org.kidscafe.kindy.mapper.IFamilyMapper;
 import org.kidscafe.kindy.mapper.IUserMapper;
 import org.kidscafe.kindy.service.IUserService;
 import org.kidscafe.kindy.util.EncryptUtil;
@@ -19,6 +21,8 @@ import java.util.List;
 @Service
 public class UserService implements IUserService {
     private final IUserMapper userMapper;
+    private final IDiaryMapper diaryMapper;
+    private final IFamilyMapper familyMapper;
     private final EncryptUtil encryptUtil;
 
     @Override
@@ -123,5 +127,89 @@ public class UserService implements IUserService {
         pDTO.setEmail(email);
 
         return userMapper.updateEmail(pDTO);
+    }
+
+    @Override
+    public List<DiaryDTO> getDiaries(String id) throws Exception {
+        log.info("Calling getDiaries");
+
+        DiaryDTO pDTO = new DiaryDTO();
+        pDTO.setUserId(id);
+
+        return diaryMapper.selectList(pDTO);
+    }
+
+    @Override
+    public DiaryDTO getDiaryInfo(String id, String date) throws Exception {
+        log.info("Calling getDiaryInfo");
+
+        DiaryDTO pDTO = new DiaryDTO();
+        pDTO.setUserId(id);
+        pDTO.setDate(date);
+
+        return diaryMapper.select(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int createDiary(DiaryDTO pDTO) throws Exception {
+        log.info("Calling createDiary");
+
+        return diaryMapper.insert(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int updateDiary(DiaryDTO pDTO) throws Exception {
+        log.info("Calling updateDiary");
+
+        return diaryMapper.update(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int deleteDiary(String id, String date) throws Exception {
+        log.info("Calling deleteDiary");
+
+        DiaryDTO pDTO = new DiaryDTO();
+        pDTO.setUserId(id);
+        pDTO.setDate(date);
+
+        return diaryMapper.delete(pDTO);
+    }
+
+    @Override
+    public List<FamilyDTO> getFamilies(String id) throws Exception {
+        log.info("Calling GetFamilies");
+
+        FamilyDTO pDTO = new FamilyDTO();
+        pDTO.setParent(id);
+        pDTO.setChild(id);
+
+        return familyMapper.selectList(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int addFamily(String parent, String child) throws Exception {
+        log.info("Calling addFamily");
+
+        FamilyDTO pDTO = new FamilyDTO();
+        pDTO.setParent(parent);
+        pDTO.setChild(child);
+
+        return familyMapper.insert(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int removeFamily(String parent, String child) throws Exception {
+        log.info("Calling removeFamily");
+
+        FamilyDTO pDTO = new FamilyDTO();
+        pDTO.setParent(parent);
+        pDTO.setChild(child);
+
+        return familyMapper.delete(pDTO);
     }
 }
