@@ -3,7 +3,7 @@
 
 <mapper namespace="IChatMessageMapper">
     <select id="selectList" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
-        SELECT CHAT_ID, NUM, TYPE, CONTENT, CREATED_AT
+        SELECT CHAT_ID, NUM, TYPE, CONTENT, ROLE, CREATED_AT
         FROM T_CHAT_MESSAGE
         WHERE CHAT_ID = #{chatId}
         <if test="minNum != null">
@@ -21,14 +21,14 @@
     </select>
 
     <select id="select" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
-        SELECT CHAT_ID, NUM, TYPE, CONTENT, CREATED_AT
+        SELECT CHAT_ID, NUM, TYPE, CONTENT, ROLE, CREATED_AT
         FROM T_CHAT_MESSAGE
         WHERE CHAT_ID = #{chatId} AND NUM = #{num}
     </select>
 
     <insert id="insert">
-        INSERT INTO T_CHAT_MESSAGE(CHAT_ID, NUM, TYPE, CONTENT)
-        VALUES (#{chatId}, #{num}, #{type}, #{content})
+        INSERT INTO T_CHAT_MESSAGE(CHAT_ID, NUM, TYPE, CONTENT, ROLE)
+        VALUES (#{chatId}, #{num}, #{type}, #{content}, #{role})
     </insert>
 
     <delete id="delete">

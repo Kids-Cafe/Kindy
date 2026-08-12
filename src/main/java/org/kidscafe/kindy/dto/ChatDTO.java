@@ -34,17 +34,26 @@ public class ChatDTO {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class MessageDTO {
         public enum Type {
-            MANAGE_NOTICE,
-            MANAGE_CLASS,
-            MANAGE_MEMBER,
-            MANAGE_SCHEDULE,
-            MANAGE_SUPPLY
+            TEXT,
+            FOOD,
+            HEALTH,
+            FRIEND,
+            PERSONALITY,
+            STUDY
+        }
+
+        public enum Role {
+            user,
+            assistant,
+            system,
+            tool
         }
 
         private Long chatId;
         private Integer num;
         private Type type;
         private String content;
+        private Role role;
         private Long createdAt;
     }
 }
