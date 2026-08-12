@@ -2,6 +2,8 @@ package org.kidscafe.kindy.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.kidscafe.kindy.dto.DiaryDTO;
+import org.kidscafe.kindy.dto.FamilyDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.mapper.IUserMapper;
 import org.kidscafe.kindy.service.IUserService;
@@ -10,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
+import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -37,8 +40,8 @@ public class UserService implements IUserService {
 
     @Transactional
     @Override
-    public int insertUser(UserDTO pDTO) throws Exception {
-        log.info("Calling insertUser");
+    public int create(UserDTO pDTO) throws Exception {
+        log.info("Calling create");
 
         return userMapper.insertUser(pDTO);
     }
@@ -68,8 +71,8 @@ public class UserService implements IUserService {
 
     @Transactional
     @Override
-    public int updateInfo(UserDTO pDTO) throws Exception {
-        log.info("Calling updateInfo");
+    public int update(UserDTO pDTO) throws Exception {
+        log.info("Calling update");
 
         return userMapper.updateInfo(pDTO);
     }
@@ -98,7 +101,7 @@ public class UserService implements IUserService {
 
     @Transactional
     @Override
-    public int newPassword(String id, String password) throws Exception {
+    public int updatePassword(String id, String password) throws Exception {
         log.info("Calling newPassword");
 
         byte[] salt = encryptUtil.getSecureSalt();

@@ -1,26 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="org.kidscafe.kindy.mapper.IUserMapper">
-    <select id="getIdExists" parameterType="UserDTO" resultType="UserDTO">
+<mapper namespace="IUserMapper">
+    <select id="getIdExists" resultType="UserDTO">
         SELECT COUNT(*) > 0 AS `EXISTS`
         FROM T_USER
         WHERE ID = #{id}
     </select>
 
-    <select id="getEmailExists" parameterType="UserDTO" resultType="UserDTO">
+    <select id="getEmailExists" resultType="UserDTO">
         SELECT COUNT(*) > 0 AS `EXISTS`
         FROM T_USER
         WHERE EMAIL = #{email}
     </select>
 
-    <insert id="insertUser" parameterType="UserDTO">
+    <insert id="insertUser">
         INSERT INTO T_USER
         (ID,
          NAME,
          PASSWORD,
          PASSWORD_SALT,
          EMAIL,
+         PHONE,
          ADDRESS,
          ADDRESS_DETAIL,
          POSTCODE)
@@ -29,30 +30,31 @@
                 #{password},
                 #{passwordSalt},
                 #{email},
+                #{phone},
                 #{address},
                 #{addressDetail},
                 #{postcode})
     </insert>
 
-    <select id="getLogin" parameterType="UserDTO" resultType="UserDTO">
+    <select id="getLogin" resultType="UserDTO">
         SELECT ID, NAME, PASSWORD, PASSWORD_SALT
         FROM T_USER
         WHERE ID = #{id}
     </select>
 
-    <select id="getInfo" parameterType="UserDTO" resultType="UserDTO">
+    <select id="getInfo" resultType="UserDTO">
         SELECT ID, NAME, EMAIL, ADDRESS, ADDRESS_DETAIL, POSTCODE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
         FROM T_USER
         WHERE ID = #{id}
     </select>
 
-    <update id="updateInfo" parameterType="UserDTO">
+    <update id="updateInfo">
         UPDATE T_USER
         SET ADDRESS = #{address}, ADDRESS_DETAIL = #{addressDetail}, POSTCODE = #{postcode}
         WHERE ID = #{id}
     </update>
 
-    <select id="getId" parameterType="UserDTO" resultType="UserDTO">
+    <select id="getId" resultType="UserDTO">
         SELECT ID, NAME, EMAIL
         FROM T_USER
         WHERE NAME = #{name}
@@ -62,13 +64,13 @@
         </if>
     </select>
 
-    <update id="updatePassword" parameterType="UserDTO">
+    <update id="updatePassword">
         UPDATE T_USER
         SET PASSWORD = #{password}, PASSWORD_SALT = #{passwordSalt}
         WHERE ID = #{id}
     </update>
 
-    <update id="updateEmail" parameterType="UserDTO">
+    <update id="updateEmail">
         UPDATE T_USER
         SET EMAIL = #{email}
         WHERE ID = #{id}

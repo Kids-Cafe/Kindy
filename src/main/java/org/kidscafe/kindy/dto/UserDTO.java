@@ -16,6 +16,7 @@ public class UserDTO {
     private byte[] password;
     private byte[] passwordSalt;
     private String email;
+    private String phone;
     private byte[] address;
     private byte[] addressDetail;
     private byte[] postcode;
@@ -34,6 +35,7 @@ public class UserDTO {
         private String id;
         private String name;
         private String email;
+        private String phone;
         private String address;
         private String addressDetail;
         private String postcode;

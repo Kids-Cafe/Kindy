@@ -72,6 +72,8 @@ public class UserController {
             if (pDTO.getPassword() != null) pDTO.setPasswordSalt(salt);
             pDTO.setEmail(request.getParameter("email"));
             if (pDTO.getEmail() == null) return ResultDTO.error("MISSING_PARAMETER");
+            pDTO.setPhone(request.getParameter("phone"));
+            if (pDTO.getPhone() == null) return ResultDTO.error("MISSING_PARAMETER");
             pDTO.setAddress(encryptUtil.encAES128CBC(request.getParameter("address")));
             if (pDTO.getAddress() == null) return ResultDTO.error("MISSING_PARAMETER");
             pDTO.setAddressDetail(encryptUtil.encAES128CBC(request.getParameter("addressDetail")));
@@ -80,7 +82,7 @@ public class UserController {
 
             log.info("User Register Attempt: {}", pDTO.getId());
 
-            int res = userService.insertUser(pDTO);
+            int res = userService.create(pDTO);
 
             log.info("User Register Result: {}", res);
 
@@ -147,6 +149,7 @@ public class UserController {
                 rDTO.getId(),
                 rDTO.getName(),
                 rDTO.getEmail(),
+                rDTO.getPhone(),
                 encryptUtil.decAES128CBC(rDTO.getAddress()),
                 encryptUtil.decAES128CBC(rDTO.getAddressDetail()),
                 encryptUtil.decAES128CBC(rDTO.getPostcode()),
@@ -169,7 +172,7 @@ public class UserController {
         if (pDTO.getPostcode() == null) return ResultDTO.error("MISSING_PARAMETER");
 
         try {
-            userService.updateInfo(pDTO);
+            userService.update(pDTO);
             return ResultDTO.success("UPDATE_COMPLETE");
         } catch (Exception e) {
             log.info(e.toString());
@@ -233,7 +236,7 @@ public class UserController {
         if (password == null) return ResultDTO.error("MISSING_PARAMETER");
         if (password.length() < 8) return ResultDTO.error("INVALID_PARAMETER");
 
-        userService.newPassword(newPassword, password);
+        userService.updatePassword(newPassword, password);
 
         session.removeAttribute("NEW_PASSWORD");
 
