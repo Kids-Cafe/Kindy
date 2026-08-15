@@ -9,6 +9,7 @@ import java.util.List;
 public interface IUserService {
     UserDTO getIdExists(String id) throws Exception;
     UserDTO getEmailExists(String email) throws Exception;
+    String sendVerificationCode(String email) throws Exception;
     int create(UserDTO pDTO) throws Exception;
     UserDTO login(String id, String password) throws Exception;
     UserDTO getInfo(String id) throws Exception;

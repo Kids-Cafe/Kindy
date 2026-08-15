@@ -1,5 +1,6 @@
 package org.kidscafe.kindy.service.impl;
 
+import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.DiaryDTO;
@@ -10,11 +11,15 @@ import org.kidscafe.kindy.mapper.IFamilyMapper;
 import org.kidscafe.kindy.mapper.IUserMapper;
 import org.kidscafe.kindy.service.IUserService;
 import org.kidscafe.kindy.util.EncryptUtil;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -24,6 +29,12 @@ public class UserService implements IUserService {
     private final IDiaryMapper diaryMapper;
     private final IFamilyMapper familyMapper;
     private final EncryptUtil encryptUtil;
+    private final JavaMailSender mailSender;
+
+    @Value("${spring.mail.username}")
+    private String EMAIL_SENDER;
+    private final String EMAIL_VERIFICATION_TITLE = "[Kindy] 인증 메일";
+    private final String EMAIL_VERIFICATION_CONTENT = "Kindy 서비스 이용을 위한 인증 메일입니다. 인증 번호: ";
 
     @Override
     public UserDTO getIdExists(String id) throws Exception {
@@ -42,10 +53,40 @@ public class UserService implements IUserService {
         return userMapper.getEmailExists(pDTO);
     }
 
+    @Override
+    public String sendVerificationCode(String email) throws Exception {
+        log.info("Calling sendVerificationCode");
+
+        String code = String.format("%06d", ThreadLocalRandom.current().nextInt(0, 1000000));
+
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper messageHelper = new MimeMessageHelper(message, "UTF-8");
+        try {
+            messageHelper.setTo(email);
+            messageHelper.setFrom(EMAIL_SENDER);
+            messageHelper.setSubject(EMAIL_VERIFICATION_TITLE);
+            messageHelper.setText(EMAIL_VERIFICATION_CONTENT + code, false);
+            mailSender.send(message);
+            return code;
+        } catch (Exception e) {
+            log.warn(e.getMessage());
+        }
+        return null;
+    }
+
     @Transactional
     @Override
     public int create(UserDTO pDTO) throws Exception {
         log.info("Calling create");
+
+        if (pDTO.getId().length() < 4 || pDTO.getId().length() > 20) throw new IllegalArgumentException();
+        if (pDTO.getName() == null) throw new NullPointerException();
+        if (pDTO.getPassword() == null) throw new NullPointerException();
+        if (pDTO.getEmail() == null) throw new NullPointerException();
+        if (pDTO.getPhone() == null) throw new NullPointerException();
+        if (pDTO.getAddress() == null) throw new NullPointerException();
+        if (pDTO.getAddressDetail() == null) throw new NullPointerException();
+        if (pDTO.getPostcode() == null) throw new NullPointerException();
 
         return userMapper.insertUser(pDTO);
     }

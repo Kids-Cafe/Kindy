@@ -4,12 +4,16 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.kidscafe.kindy.dto.DiaryDTO;
+import org.kidscafe.kindy.dto.FamilyDTO;
 import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.service.IUserService;
 import org.kidscafe.kindy.util.EncryptUtil;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @Slf4j
 @RequestMapping(value = "/api/user")
@@ -53,32 +57,64 @@ public class UserController {
         return ResultDTO.success("QUERY_COMPLETE", user);
     }
 
-    @PostMapping(value = "insertUser")
-    public ResultDTO<Void> insertUser(HttpServletRequest request) {
-        log.info("Calling insertUser");
+    @GetMapping(value = "getVerificationEmail")
+    public ResultDTO<UserDTO> getVerificationEmail(HttpServletRequest request, HttpSession session) {
+        log.info("Calling getVerificationEmail");
+
+        String email = request.getParameter("email");
+        if (email == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        try {
+            UserDTO user = userService.getEmailExists(email);
+            if (user == null) return ResultDTO.error("UNKNOWN_ERROR");
+            if (user.getExists()) return ResultDTO.error("EMAIL_EXISTS");
+            String code = userService.sendVerificationCode(email);
+            log.info("code: {}", code);
+            session.setAttribute("SESSION_VERIFICATION_CODE", code);
+            return ResultDTO.success("SENT_CODE");
+        } catch(Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @PostMapping(value = "verifyEmail")
+    public ResultDTO<UserDTO> verifyEmail(HttpServletRequest request, HttpSession session) {
+        log.info("Calling verifyEmail");
+
+        String email = request.getParameter("email");
+        if (email == null) return ResultDTO.error("MISSING_PARAMETER");
+        String code = request.getParameter("code");
+        if (code == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        if (code.equals(session.getAttribute("SESSION_VERIFICATION_CODE"))) {
+            session.removeAttribute("SESSION_VERIFICATION_CODE");
+            session.setAttribute("SESSION_VERIFIED_EMAIL", email);
+            return ResultDTO.success("VERIFICATION_COMPLETE");
+        } else {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+    }
+
+    @PostMapping(value = "create")
+    public ResultDTO<Void> create(HttpServletRequest request, HttpSession session) {
+        log.info("Calling create");
 
         UserDTO pDTO = new UserDTO();
         pDTO.setId(request.getParameter("id"));
-        if (pDTO.getId() == null) return ResultDTO.error("MISSING_PARAMETER");
-        if (pDTO.getId().length() < 4) return ResultDTO.error("INVALID_PARAMETER");
         pDTO.setName(request.getParameter("name"));
-        if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
+        String password = request.getParameter("password");
+        if (password == null || password.length() < 8) return ResultDTO.error("INVALID_PARAMETER");
+        byte[] salt = encryptUtil.getSecureSalt();
+        pDTO.setPassword(encryptUtil.encHashSHA256(password, salt));
+        pDTO.setPasswordSalt(salt);
+        pDTO.setEmail(request.getParameter("email"));
+        if (!pDTO.getEmail().equals(session.getAttribute("SESSION_VERIFIED_EMAIL"))) return ResultDTO.error("EMAIL_NOT_VERIFIED");
+        pDTO.setPhone(request.getParameter("phone"));
 
         try {
-            String password = request.getParameter("password");
-            if (password != null && password.length() < 8) return ResultDTO.error("INVALID_PARAMETER");
-            byte[] salt = encryptUtil.getSecureSalt();
-            pDTO.setPassword(encryptUtil.encHashSHA256(password, salt));
-            if (pDTO.getPassword() != null) pDTO.setPasswordSalt(salt);
-            pDTO.setEmail(request.getParameter("email"));
-            if (pDTO.getEmail() == null) return ResultDTO.error("MISSING_PARAMETER");
-            pDTO.setPhone(request.getParameter("phone"));
-            if (pDTO.getPhone() == null) return ResultDTO.error("MISSING_PARAMETER");
             pDTO.setAddress(encryptUtil.encAES128CBC(request.getParameter("address")));
-            if (pDTO.getAddress() == null) return ResultDTO.error("MISSING_PARAMETER");
             pDTO.setAddressDetail(encryptUtil.encAES128CBC(request.getParameter("addressDetail")));
             pDTO.setPostcode(encryptUtil.encAES128CBC(request.getParameter("postcode")));
-            if (pDTO.getPostcode() == null) return ResultDTO.error("MISSING_PARAMETER");
 
             log.info("User Register Attempt: {}", pDTO.getId());
 
@@ -91,27 +127,31 @@ public class UserController {
             } else {
                 return ResultDTO.error("UNKNOWN_ERROR");
             }
+        } catch (NullPointerException e) {
+            return ResultDTO.error("MISSING_PARAMETER");
+        } catch (IllegalArgumentException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
         } catch (DuplicateKeyException e) {
             log.info("Duplicate ID: {}", pDTO.getId());
             return ResultDTO.error("DUPLICATE_ID");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.info(e.getMessage());
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "login")
-    public ResultDTO<Void> login(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<UserDTO> login(HttpServletRequest request, HttpSession session) {
         log.info("Calling login");
 
+        String id = request.getParameter("id");
+        if (id == null) return ResultDTO.error("MISSING_PARAMETER");
+        String password = request.getParameter("password");
+        if (password == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        log.info("Login Attempt: {}", id);
+
         try {
-            String id = request.getParameter("id");
-            if (id == null) return ResultDTO.error("MISSING_PARAMETER");
-            String password = request.getParameter("password");
-            if (password == null) return ResultDTO.error("MISSING_PARAMETER");
-
-            log.info("Login Attempt: {}", id);
-
             UserDTO rDTO = userService.login(id, password);
             if (rDTO == null) return ResultDTO.error("SIGNIN_NO_MATCHES");
 
@@ -121,9 +161,9 @@ public class UserController {
             session.setAttribute("SESSION_USER_ID", rDTO.getId());
             session.setAttribute("SESSION_USER_NAME", rDTO.getName());
 
-            return ResultDTO.success("SIGNIN_COMPLETE");
+            return ResultDTO.success("SIGNIN_COMPLETE", rDTO);
         } catch (Exception e) {
-            log.info(e.toString());
+            log.info(e.getMessage());
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -175,7 +215,7 @@ public class UserController {
             userService.update(pDTO);
             return ResultDTO.success("UPDATE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.info(e.getMessage());
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -259,5 +299,159 @@ public class UserController {
         userService.updateEmail(id, email, password);
 
         return ResultDTO.success("UPDATE_COMPLETE");
+    }
+
+    @GetMapping(value = "diary/list")
+    public ResultDTO<List<DiaryDTO>> diaryList(HttpSession session) {
+        log.info("Calling diaryList");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", userService.getDiaries(userId));
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @GetMapping(value = "diary/info")
+    public ResultDTO<DiaryDTO> diaryInfo(HttpServletRequest request, HttpSession session) {
+        log.info("Calling diaryInfo");
+
+        String userId = request.getParameter("userId");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+        String date = request.getParameter("date");
+        if (date == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", userService.getDiaryInfo(userId, date));
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @PostMapping(value = "diary/create")
+    public ResultDTO<Void> createDiary(HttpServletRequest request, HttpSession session) {
+        log.info("Calling createDiary");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        DiaryDTO pDTO = new DiaryDTO();
+        pDTO.setUserId(userId);
+        pDTO.setDate(request.getParameter("date"));
+        if (pDTO.getDate() == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        try {
+            userService.createDiary(pDTO);
+            return ResultDTO.success("CREATE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @PostMapping(value = "diary/modify")
+    public ResultDTO<Void> modifyDiary(HttpServletRequest request, HttpSession session) {
+        log.info("Calling modifyDiary");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        DiaryDTO pDTO = new DiaryDTO();
+        pDTO.setUserId(userId);
+        pDTO.setDate(request.getParameter("date"));
+        if (pDTO.getDate() == null) return ResultDTO.error("MISSING_PARAMETER");
+        pDTO.setTag(request.getParameter("tag"));
+
+        try {
+            userService.updateDiary(pDTO);
+            return ResultDTO.success("UPDATE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @PostMapping(value = "diary/delete")
+    public ResultDTO<Void> deleteDiary(HttpServletRequest request, HttpSession session) {
+        log.info("Calling deleteDiary");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+        String date = request.getParameter("date");
+        if (date == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        try {
+            userService.deleteDiary(userId, date);
+            return ResultDTO.success("DELETE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @GetMapping(value = "family/list")
+    public ResultDTO<List<FamilyDTO>> familyList(HttpSession session) {
+        log.info("Calling familyList");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", userService.getFamilies(userId));
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @PostMapping(value = "family/add")
+    public ResultDTO<Void> addFamily(HttpServletRequest request, HttpSession session) {
+        log.info("Calling addFamily");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        String parent = request.getParameter("parent");
+        if (parent == null) return ResultDTO.error("MISSING_PARAMETER");
+        String child = request.getParameter("child");
+        if (child == null) return ResultDTO.error("MISSING_PARAMETER");
+        if (!parent.equals(userId) && !child.equals(userId)) return ResultDTO.error("INVALID_ACCESS");
+        if (parent.equals(child)) return ResultDTO.error("INVALID_PARAMETER");
+
+        try {
+            userService.addFamily(parent, child);
+            return ResultDTO.success("CREATE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @PostMapping(value = "family/remove")
+    public ResultDTO<Void> removeFamily(HttpServletRequest request, HttpSession session) {
+        log.info("Calling removeFamily");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        String parent = request.getParameter("parent");
+        if (parent == null) return ResultDTO.error("MISSING_PARAMETER");
+        String child = request.getParameter("child");
+        if (child == null) return ResultDTO.error("MISSING_PARAMETER");
+        if (!parent.equals(userId) && !child.equals(userId)) return ResultDTO.error("INVALID_ACCESS");
+        if (parent.equals(child)) return ResultDTO.error("INVALID_PARAMETER");
+
+        try {
+            userService.removeFamily(parent, child);
+            return ResultDTO.success("DELETE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
     }
 }
