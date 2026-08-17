@@ -154,16 +154,180 @@ public class KindergartenController {
         }
     }
 
+    @GetMapping(value = "memberships")
+    public ResultDTO<List<RelationshipDTO>> memberships(HttpSession session) {
+        log.info("Calling memberships");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getMemberships(sessionUserId));
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
     @PostMapping(value = "join")
-    public ResultDTO<Void> join() {
-        // TODO
-        return ResultDTO.error("NOT_AVAILABLE");
+    public ResultDTO<Void> join(HttpServletRequest request, HttpSession session) {
+        log.info("Calling join");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+        String type = request.getParameter("type");
+
+        try {
+            kindergartenService.requestJoin(id, sessionUserId, RelationshipDTO.Type.valueOf(type));
+        } catch (IllegalArgumentException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+        return ResultDTO.success("JOIN_REQUESTED");
     }
 
     @PostMapping(value = "invite")
-    public ResultDTO<Void> invite() {
-        // TODO
-        return ResultDTO.error("NOT_AVAILABLE");
+    public ResultDTO<Void> invite(HttpServletRequest request, HttpSession session) {
+        log.info("Calling invite");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+        String userId = request.getParameter("userId");
+        if (userId == null) return ResultDTO.error("MISSING_PARAMETER");
+        String type = request.getParameter("type");
+        Long roleId = null;
+        try {
+            String roleIdParam = request.getParameter("roleId");
+            if (roleIdParam != null) roleId = Long.parseLong(roleIdParam);
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        // TODO: Permission check
+
+        try {
+            kindergartenService.inviteUser(id, sessionUserId, userId, RelationshipDTO.Type.valueOf(type), roleId);
+        } catch (IllegalArgumentException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+        return ResultDTO.success("INVITE_COMPLETE");
+    }
+
+    @PostMapping(value = "invite/cancel")
+    public ResultDTO<Void> cancelInvite(HttpServletRequest request, HttpSession session) {
+        log.info("Calling cancelInvite");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        try {
+            kindergartenService.cancelInvite(id, sessionUserId);
+        } catch (IllegalAccessException e) {
+            return ResultDTO.error("INVALID_ACCESS");
+        } catch (IllegalStateException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+        return ResultDTO.success("CANCEL_COMPLETE");
+    }
+
+    @PostMapping(value = "invite/accept")
+    public ResultDTO<Void> acceptInvite(HttpServletRequest request, HttpSession session) {
+        log.info("Calling acceptInvite");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        try {
+            kindergartenService.acceptInvite(id, sessionUserId);
+        } catch (IllegalAccessException e) {
+            return ResultDTO.error("INVALID_ACCESS");
+        } catch (IllegalStateException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+        return ResultDTO.success("ACCEPT_COMPLETE");
+    }
+
+    @PostMapping(value = "invite/reject")
+    public ResultDTO<Void> rejectInvite(HttpServletRequest request, HttpSession session) {
+        log.info("Calling rejectInvite");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        try {
+            kindergartenService.rejectInvite(id, sessionUserId);
+        } catch (IllegalAccessException e) {
+            return ResultDTO.error("INVALID_ACCESS");
+        } catch (IllegalStateException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+        return ResultDTO.success("REJECT_COMPLETE");
+    }
+
+    @GetMapping(value = "invite/list")
+    public ResultDTO<List<InviteDTO>> inviteList(HttpServletRequest request, HttpSession session) {
+        log.info("Calling inviteList");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("kindergartenId"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        // TODO: Permission check
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getInvites(id));
+        } catch (Exception e) {
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
     }
 
     @PostMapping(value = "add")

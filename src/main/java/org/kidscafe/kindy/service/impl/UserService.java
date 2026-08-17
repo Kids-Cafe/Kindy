@@ -84,9 +84,13 @@ public class UserService implements IUserService {
         if (pDTO.getPassword() == null) throw new NullPointerException();
         if (pDTO.getEmail() == null) throw new NullPointerException();
         if (pDTO.getPhone() == null) throw new NullPointerException();
-        if (pDTO.getAddress() == null) throw new NullPointerException();
-        if (pDTO.getAddressDetail() == null) throw new NullPointerException();
-        if (pDTO.getPostcode() == null) throw new NullPointerException();
+        if (pDTO.getAccountType() == UserDTO.AccountType.CHILD) {
+            if (pDTO.getBirthDate() == null) throw new NullPointerException();
+        } else {
+            if (pDTO.getAddress() == null) throw new NullPointerException();
+            if (pDTO.getAddressDetail() == null) throw new NullPointerException();
+            if (pDTO.getPostcode() == null) throw new NullPointerException();
+        }
 
         return userMapper.insertUser(pDTO);
     }
@@ -252,5 +256,13 @@ public class UserService implements IUserService {
         pDTO.setChild(child);
 
         return familyMapper.delete(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int completeOnboarding(String id) throws Exception {
+        log.info("Calling completeOnboarding");
+
+        return userMapper.completeOnboarding(UserDTO.fromId(id));
     }
 }

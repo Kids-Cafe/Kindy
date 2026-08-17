@@ -11,6 +11,16 @@ import lombok.ToString;
 @ToString
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class UserDTO {
+    public enum AccountType {
+        ADULT,
+        CHILD
+    }
+
+    public enum Gender {
+        MALE,
+        FEMALE
+    }
+
     private String id;
     private String name;
     private byte[] password;
@@ -20,6 +30,12 @@ public class UserDTO {
     private byte[] address;
     private byte[] addressDetail;
     private byte[] postcode;
+    private AccountType accountType;
+    private String birthDate;
+    private Gender gender;
+    private String guardianName;
+    private String guardianPhone;
+    private Boolean onboardingCompleted;
     private Long createdAt;
     private Long updatedAt;
     private Boolean exists;
@@ -39,6 +55,12 @@ public class UserDTO {
         private String address;
         private String addressDetail;
         private String postcode;
+        private AccountType accountType;
+        private String birthDate;
+        private Gender gender;
+        private String guardianName;
+        private String guardianPhone;
+        private Boolean onboardingCompleted;
         private Long createdAt;
         private Long updatedAt;
     }

@@ -24,7 +24,12 @@
          PHONE,
          ADDRESS,
          ADDRESS_DETAIL,
-         POSTCODE)
+         POSTCODE,
+         ACCOUNT_TYPE,
+         BIRTH_DATE,
+         GENDER,
+         GUARDIAN_NAME,
+         GUARDIAN_PHONE)
         VALUES (#{id},
                 #{name},
                 #{password},
@@ -33,7 +38,12 @@
                 #{phone},
                 #{address},
                 #{addressDetail},
-                #{postcode})
+                #{postcode},
+                #{accountType},
+                #{birthDate},
+                #{gender},
+                #{guardianName},
+                #{guardianPhone})
     </insert>
 
     <select id="getLogin" resultType="UserDTO">
@@ -43,7 +53,7 @@
     </select>
 
     <select id="getInfo" resultType="UserDTO">
-        SELECT ID, NAME, EMAIL, ADDRESS, ADDRESS_DETAIL, POSTCODE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
+        SELECT ID, NAME, EMAIL, ADDRESS, ADDRESS_DETAIL, POSTCODE, ACCOUNT_TYPE, BIRTH_DATE, GENDER, GUARDIAN_NAME, GUARDIAN_PHONE, ONBOARDING_COMPLETED, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
         FROM T_USER
         WHERE ID = #{id}
     </select>
@@ -73,6 +83,12 @@
     <update id="updateEmail">
         UPDATE T_USER
         SET EMAIL = #{email}
+        WHERE ID = #{id}
+    </update>
+
+    <update id="completeOnboarding">
+        UPDATE T_USER
+        SET ONBOARDING_COMPLETED = 1
         WHERE ID = #{id}
     </update>
 </mapper>

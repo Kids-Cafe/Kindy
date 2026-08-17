@@ -15,6 +15,14 @@
         WHERE KINDERGARTEN_ID = #{kindergartenId}
     </select>
 
+    <select id="getListByUser" resultType="RelationshipDTO">
+        SELECT R.KINDERGARTEN_ID, K.NAME KINDERGARTEN_NAME, R.USER_ID, R.TYPE, R.ROLE_ID, RO.NAME ROLE_NAME, R.NICKNAME
+        FROM T_RELATIONSHIP R
+        JOIN T_KINDERGARTEN K ON K.ID = R.KINDERGARTEN_ID
+        LEFT JOIN T_ROLE RO ON RO.ID = R.ROLE_ID
+        WHERE R.USER_ID = #{userId}
+    </select>
+
     <select id="getInfo" resultType="RelationshipDTO">
         SELECT KINDERGARTEN_ID, USER_ID, TYPE, ROLE_ID, NICKNAME, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
         FROM T_RELATIONSHIP

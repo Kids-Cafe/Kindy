@@ -20,6 +20,8 @@ public class KindergartenService implements IKindergartenService {
     private final IPermissionMapper permissionMapper;
     private final INoticeMapper noticeMapper;
     private final IScheduleMapper scheduleMapper;
+    private final IFamilyMapper familyMapper;
+    private final IInviteMapper inviteMapper;
 
     @Override
     public List<KindergartenDTO> getList() throws Exception {
@@ -72,6 +74,30 @@ public class KindergartenService implements IKindergartenService {
         return relationshipMapper.getList(pDTO);
     }
 
+    @Override
+    public List<RelationshipDTO> getMemberships(String userId) throws Exception {
+        log.info("Calling getMemberships");
+
+        RelationshipDTO pDTO = new RelationshipDTO();
+        pDTO.setUserId(userId);
+
+        List<RelationshipDTO> result = new java.util.ArrayList<>(relationshipMapper.getListByUser(pDTO));
+
+        FamilyDTO fDTO = new FamilyDTO();
+        fDTO.setParent(userId);
+        for (FamilyDTO family : familyMapper.selectList(fDTO)) {
+            if (!userId.equals(family.getParent())) continue;
+
+            RelationshipDTO childQuery = new RelationshipDTO();
+            childQuery.setUserId(family.getChild());
+            for (RelationshipDTO r : relationshipMapper.getListByUser(childQuery)) {
+                if (r.getType() == RelationshipDTO.Type.CHILD) result.add(r);
+            }
+        }
+
+        return result;
+    }
+
     @Transactional
     @Override
     public int add(long id, String userId, RelationshipDTO.Type type) throws Exception {
@@ -118,6 +144,114 @@ public class KindergartenService implements IKindergartenService {
         log.info("Calling has");
 
         return relationshipMapper.getExists(RelationshipDTO.fromId(id, userId));
+    }
+
+    @Transactional
+    @Override
+    public int inviteUser(long id, String inviterId, String userId, RelationshipDTO.Type type, Long roleId) throws Exception {
+        log.info("Calling inviteUser");
+
+        InviteDTO pDTO = new InviteDTO();
+        pDTO.setKindergartenId(id);
+        pDTO.setInviterId(inviterId);
+        pDTO.setUserId(userId);
+        pDTO.setType(type);
+        pDTO.setRoleId(roleId);
+        pDTO.setDirection(InviteDTO.Direction.INVITE);
+
+        return inviteMapper.insert(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int requestJoin(long id, String userId, RelationshipDTO.Type type) throws Exception {
+        log.info("Calling requestJoin");
+
+        InviteDTO pDTO = new InviteDTO();
+        pDTO.setKindergartenId(id);
+        pDTO.setUserId(userId);
+        pDTO.setType(type);
+        pDTO.setDirection(InviteDTO.Direction.JOIN);
+
+        return inviteMapper.insert(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int cancelInvite(long id, String requesterId) throws Exception {
+        log.info("Calling cancelInvite");
+
+        InviteDTO invite = inviteMapper.getInfo(InviteDTO.fromId(id));
+        if (invite == null || invite.getStatus() != InviteDTO.Status.PENDING) throw new IllegalStateException();
+
+        String owner = invite.getDirection() == InviteDTO.Direction.INVITE ? invite.getInviterId() : invite.getUserId();
+        if (!requesterId.equals(owner)) throw new IllegalAccessException();
+
+        invite.setStatus(InviteDTO.Status.CANCELED);
+        return inviteMapper.updateStatus(invite);
+    }
+
+    @Transactional
+    @Override
+    public int acceptInvite(long id, String userId) throws Exception {
+        log.info("Calling acceptInvite");
+
+        InviteDTO invite = inviteMapper.getInfo(InviteDTO.fromId(id));
+        if (invite == null || invite.getStatus() != InviteDTO.Status.PENDING) throw new IllegalStateException();
+
+        this.checkInviteCounterparty(invite, userId);
+
+        RelationshipDTO rDTO = RelationshipDTO.fromId(invite.getKindergartenId(), invite.getUserId());
+        rDTO.setType(invite.getType());
+        relationshipMapper.insert(rDTO);
+
+        invite.setStatus(InviteDTO.Status.ACCEPTED);
+        return inviteMapper.updateStatus(invite);
+    }
+
+    @Transactional
+    @Override
+    public int rejectInvite(long id, String userId) throws Exception {
+        log.info("Calling rejectInvite");
+
+        InviteDTO invite = inviteMapper.getInfo(InviteDTO.fromId(id));
+        if (invite == null || invite.getStatus() != InviteDTO.Status.PENDING) throw new IllegalStateException();
+
+        this.checkInviteCounterparty(invite, userId);
+
+        invite.setStatus(InviteDTO.Status.REJECTED);
+        return inviteMapper.updateStatus(invite);
+    }
+
+    // Only the invitee may accept/reject an INVITE; only an existing teacher may accept/reject a JOIN
+    // request, since the finer-grained MANAGE_MEMBER permission check is out of scope for this pass.
+    private void checkInviteCounterparty(InviteDTO invite, String userId) throws Exception {
+        if (invite.getDirection() == InviteDTO.Direction.INVITE) {
+            if (!userId.equals(invite.getUserId())) throw new IllegalAccessException();
+        } else {
+            RelationshipDTO admin = relationshipMapper.getInfo(RelationshipDTO.fromId(invite.getKindergartenId(), userId));
+            if (admin == null || admin.getType() != RelationshipDTO.Type.TEACHER) throw new IllegalAccessException();
+        }
+    }
+
+    @Override
+    public List<InviteDTO> getInvites(long id) throws Exception {
+        log.info("Calling getInvites");
+
+        InviteDTO pDTO = new InviteDTO();
+        pDTO.setKindergartenId(id);
+
+        return inviteMapper.getListByKindergarten(pDTO);
+    }
+
+    @Override
+    public List<InviteDTO> getUserInvites(String userId) throws Exception {
+        log.info("Calling getUserInvites");
+
+        InviteDTO pDTO = new InviteDTO();
+        pDTO.setUserId(userId);
+
+        return inviteMapper.getListByUser(pDTO);
     }
 
     @Override

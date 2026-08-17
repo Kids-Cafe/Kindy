@@ -26,4 +26,5 @@ public interface IUserService {
     List<FamilyDTO> getFamilies(String id) throws Exception;
     int addFamily(String parent, String child) throws Exception;
     int removeFamily(String parent, String child) throws Exception;
+    int completeOnboarding(String id) throws Exception;
 }

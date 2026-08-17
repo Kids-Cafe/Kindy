@@ -16,9 +16,12 @@ public class RelationshipDTO {
     }
 
     private Long kindergartenId;
+    private String kindergartenName;
     private String userId;
     private Type type;
+    private Long classId;
     private Long roleId;
+    private String roleName;
     private String nickname;
     private Long createdAt;
     private Long updatedAt;

@@ -6,8 +6,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.DiaryDTO;
 import org.kidscafe.kindy.dto.FamilyDTO;
+import org.kidscafe.kindy.dto.InviteDTO;
 import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.dto.UserDTO;
+import org.kidscafe.kindy.service.IKindergartenService;
 import org.kidscafe.kindy.service.IUserService;
 import org.kidscafe.kindy.util.EncryptUtil;
 import org.springframework.dao.DuplicateKeyException;
@@ -21,6 +23,7 @@ import java.util.List;
 @RestController
 public class UserController {
     private final IUserService userService;
+    private final IKindergartenService kindergartenService;
     private final EncryptUtil encryptUtil;
 
     @GetMapping(value = "getIdExists")
@@ -111,10 +114,28 @@ public class UserController {
         if (!pDTO.getEmail().equals(session.getAttribute("SESSION_VERIFIED_EMAIL"))) return ResultDTO.error("EMAIL_NOT_VERIFIED");
         pDTO.setPhone(request.getParameter("phone"));
 
+        String accountType = request.getParameter("accountType");
         try {
-            pDTO.setAddress(encryptUtil.encAES128CBC(request.getParameter("address")));
-            pDTO.setAddressDetail(encryptUtil.encAES128CBC(request.getParameter("addressDetail")));
-            pDTO.setPostcode(encryptUtil.encAES128CBC(request.getParameter("postcode")));
+            pDTO.setAccountType(accountType == null ? UserDTO.AccountType.ADULT : UserDTO.AccountType.valueOf(accountType));
+        } catch (IllegalArgumentException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+        pDTO.setBirthDate(request.getParameter("birthDate"));
+        String gender = request.getParameter("gender");
+        try {
+            if (gender != null) pDTO.setGender(UserDTO.Gender.valueOf(gender));
+        } catch (IllegalArgumentException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+        pDTO.setGuardianName(request.getParameter("guardianName"));
+        pDTO.setGuardianPhone(request.getParameter("guardianPhone"));
+
+        try {
+            if (pDTO.getAccountType() != UserDTO.AccountType.CHILD) {
+                pDTO.setAddress(encryptUtil.encAES128CBC(request.getParameter("address")));
+                pDTO.setAddressDetail(encryptUtil.encAES128CBC(request.getParameter("addressDetail")));
+                pDTO.setPostcode(encryptUtil.encAES128CBC(request.getParameter("postcode")));
+            }
 
             log.info("User Register Attempt: {}", pDTO.getId());
 
@@ -193,6 +214,12 @@ public class UserController {
                 encryptUtil.decAES128CBC(rDTO.getAddress()),
                 encryptUtil.decAES128CBC(rDTO.getAddressDetail()),
                 encryptUtil.decAES128CBC(rDTO.getPostcode()),
+                rDTO.getAccountType(),
+                rDTO.getBirthDate(),
+                rDTO.getGender(),
+                rDTO.getGuardianName(),
+                rDTO.getGuardianPhone(),
+                rDTO.getOnboardingCompleted(),
                 rDTO.getCreatedAt(),
                 rDTO.getUpdatedAt()
         ));
@@ -213,6 +240,22 @@ public class UserController {
 
         try {
             userService.update(pDTO);
+            return ResultDTO.success("UPDATE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @PostMapping(value = "onboarding/complete")
+    public ResultDTO<Void> completeOnboarding(HttpSession session) throws Exception {
+        log.info("Calling completeOnboarding");
+
+        String id = (String) session.getAttribute("SESSION_USER_ID");
+        if (id == null) return ResultDTO.error("INVALID_ACCESS");
+
+        try {
+            userService.completeOnboarding(id);
             return ResultDTO.success("UPDATE_COMPLETE");
         } catch (Exception e) {
             log.info(e.getMessage());
@@ -388,6 +431,21 @@ public class UserController {
         try {
             userService.deleteDiary(userId, date);
             return ResultDTO.success("DELETE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @GetMapping(value = "invite/list")
+    public ResultDTO<List<InviteDTO>> inviteList(HttpSession session) {
+        log.info("Calling inviteList");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getUserInvites(userId));
         } catch (Exception e) {
             log.info(e.getMessage());
             return ResultDTO.error("UNKNOWN_ERROR");
