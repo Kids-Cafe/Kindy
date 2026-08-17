@@ -56,4 +56,19 @@ public class ChatController {
         log.info(result);
         return result;
     }
+
+    @GetMapping(value = "messages")
+    public ResultDTO<List<ChatDTO.MessageDTO>> messages(HttpSession session, @RequestParam long id) {
+        log.info("Calling messages");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", chatService.getMessages(id));
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
 }
