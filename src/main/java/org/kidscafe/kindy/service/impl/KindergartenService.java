@@ -37,6 +37,16 @@ public class KindergartenService implements IKindergartenService {
         return kindergartenMapper.getInfo(KindergartenDTO.fromId(id));
     }
 
+    @Override
+    public KindergartenDTO getInfoByBrn(String brn) throws Exception {
+        log.info("Calling getInfoByBrn");
+
+        KindergartenDTO pDTO = new KindergartenDTO();
+        pDTO.setBrn(brn);
+
+        return kindergartenMapper.getInfo(pDTO);
+    }
+
     @Transactional
     @Override
     public int create(KindergartenDTO pDTO) throws Exception {

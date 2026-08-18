@@ -3,13 +3,13 @@
 
 <mapper namespace="org.kidscafe.kindy.mapper.ISupplyMapper">
     <select id="selectList" resultType="SupplyDTO">
-        SELECT ID, DATE, TITLE
+        SELECT ID, DATE, TITLE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
         FROM T_SUPPLY
         WHERE CLASS_ID = #{classId}
     </select>
 
     <select id="select" resultType="SupplyDTO">
-        SELECT ID, CLASS_ID, DATE, TITLE, CONTENT, CREATED_AT, UPDATED_AT
+        SELECT ID, CLASS_ID, DATE, TITLE, CONTENT, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
         FROM T_SUPPLY
         WHERE ID = #{id}
     </select>

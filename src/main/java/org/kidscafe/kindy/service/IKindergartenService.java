@@ -7,6 +7,7 @@ import java.util.List;
 public interface IKindergartenService {
     List<KindergartenDTO> getList() throws Exception;
     KindergartenDTO getInfo(long id) throws Exception;
+    KindergartenDTO getInfoByBrn(String brn) throws Exception;
     int create(KindergartenDTO pDTO) throws Exception;
     int update(KindergartenDTO pDTO) throws Exception;
     int transfer(long id, String userId) throws Exception;

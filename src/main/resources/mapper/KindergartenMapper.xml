@@ -11,6 +11,7 @@
         SELECT ID, NAME, BRN, OWNER, ADDRESS, ADDRESS_DETAIL, POSTCODE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
         FROM T_KINDERGARTEN
         WHERE ID = #{id}
+           OR BRN = #{brn}
     </select>
 
     <insert id="insert">

@@ -88,7 +88,7 @@
 
     <update id="completeOnboarding">
         UPDATE T_USER
-        SET ONBOARDING_COMPLETED = 1
+        SET ONBOARDING_COMPLETED = TRUE
         WHERE ID = #{id}
     </update>
 </mapper>

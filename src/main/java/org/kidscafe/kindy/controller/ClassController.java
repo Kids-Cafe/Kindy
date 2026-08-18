@@ -78,6 +78,7 @@ public class ClassController {
         // TODO: check if the user has access
 
         ClassDTO pDTO = new ClassDTO();
+        pDTO.setKindergartenId(Long.parseLong(request.getParameter("kindergartenId")));
         pDTO.setName(request.getParameter("name"));
         if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
         try {

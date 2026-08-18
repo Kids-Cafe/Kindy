@@ -40,15 +40,19 @@ public class KindergartenController {
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
 
         long id;
+        String brn = request.getParameter("brn");
         try {
             id = Long.parseLong(request.getParameter("id"));
+            if (brn != null) return ResultDTO.error("INVALID_PARAMETER");
         } catch (NumberFormatException e) {
-            return ResultDTO.error("INVALID_PARAMETER");
+            if (brn == null) return ResultDTO.error("INVALID_PARAMETER");
+            id = -1;
         }
 
         // TODO: check if the user has access
 
         try {
+            if (brn != null) return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getInfoByBrn(brn));
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getInfo(id));
         } catch (Exception e) {
             return ResultDTO.error("UNKNOWN_ERROR");
@@ -65,6 +69,7 @@ public class KindergartenController {
         // TODO: BRN verification
 
         KindergartenDTO pDTO = new KindergartenDTO();
+        pDTO.setOwner(userId);
         pDTO.setName(request.getParameter("name"));
         if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
         pDTO.setBrn(request.getParameter("brn"));

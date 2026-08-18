@@ -3,7 +3,7 @@
 
 <mapper namespace="org.kidscafe.kindy.mapper.INoticeMapper">
     <select id="getList" resultType="NoticeDTO">
-        SELECT KINDERGARTEN_ID, NUM, TITLE, PINNED, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
+        SELECT KINDERGARTEN_ID, NUM, TITLE, PINNED, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
         FROM T_NOTICE
         WHERE KINDERGARTEN_ID = #{kindergartenId}
         ORDER BY PINNED DESC, NUM DESC
