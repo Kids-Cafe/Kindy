@@ -12,7 +12,10 @@ public interface IRelationshipMapper {
     List<RelationshipDTO> getListByUser(RelationshipDTO pDTO) throws Exception;
     RelationshipDTO getInfo(RelationshipDTO pDTO) throws Exception;
     int insert(RelationshipDTO pDTO) throws Exception;
+    /** Same as {@link #insert} but a no-op when the membership already exists. */
+    int insertIfAbsent(RelationshipDTO pDTO) throws Exception;
     int updateRole(RelationshipDTO pDTO) throws Exception;
+    int updateClass(RelationshipDTO pDTO) throws Exception;
     int updateNickname(RelationshipDTO pDTO) throws Exception;
     int insertRole(RelationshipDTO pDTO) throws Exception;
     int deleteRole(RelationshipDTO pDTO) throws Exception;

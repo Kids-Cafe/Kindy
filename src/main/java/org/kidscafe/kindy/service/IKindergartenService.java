@@ -18,6 +18,8 @@ public interface IKindergartenService {
     int assignRole(long id, String userId, long roleId) throws Exception;
     int unassignRole(long id, String userId, long roleId) throws Exception;
     int setNickname(long id, String userId, String nickname) throws Exception;
+    /** Puts a member in a class, or takes them out of one when {@code classId} is null. */
+    int setClass(long id, String userId, Long classId) throws Exception;
     int remove(long id, String userId) throws Exception;
     RelationshipDTO has(long id, String userId) throws Exception;
     int inviteUser(long id, String inviterId, String userId, RelationshipDTO.Type type, Long roleId) throws Exception;

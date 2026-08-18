@@ -68,9 +68,24 @@
         VALUES (#{kindergartenId}, #{userId}, #{type})
     </insert>
 
+    <!-- Used when a membership is implied rather than requested — e.g. the owner of a newly
+         created kindergarten — so re-running it can't fail on the existing row. -->
+    <insert id="insertIfAbsent">
+        INSERT IGNORE INTO T_RELATIONSHIP(KINDERGARTEN_ID, USER_ID, TYPE)
+        VALUES (#{kindergartenId}, #{userId}, #{type})
+    </insert>
+
     <update id="updateRole">
         UPDATE T_RELATIONSHIP
         SET ROLE_ID = #{roleId}
+        WHERE KINDERGARTEN_ID = #{kindergartenId}
+          AND USER_ID = #{userId}
+    </update>
+
+    <!-- classId is nullable on purpose: passing null unassigns the member from their class. -->
+    <update id="updateClass">
+        UPDATE T_RELATIONSHIP
+        SET CLASS_ID = #{classId}
         WHERE KINDERGARTEN_ID = #{kindergartenId}
           AND USER_ID = #{userId}
     </update>

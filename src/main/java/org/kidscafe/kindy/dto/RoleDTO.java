@@ -18,10 +18,14 @@ public class RoleDTO {
 
     public enum Permission {
         MANAGE_NOTICE,
+        /** Creating, renaming and deleting classes, and assigning members to them. */
         MANAGE_CLASS,
         MANAGE_MEMBER,
         MANAGE_SCHEDULE,
-        MANAGE_SUPPLY
+        MANAGE_SUPPLY,
+        /** Uploading, editing and removing class photos. Separate from MANAGE_CLASS so a
+         *  teacher can be trusted with the album without being able to restructure classes. */
+        MANAGE_PHOTO
     }
 
     @Getter

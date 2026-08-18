@@ -466,6 +466,54 @@ public class KindergartenController {
         return ResultDTO.success("UPDATE_COMPLETE");
     }
 
+    /**
+     * Puts a member in a class, or takes them out of one. Omitting {@code classId} (or sending it
+     * empty) unassigns. Works for children and teachers alike — both are rows in T_RELATIONSHIP.
+     */
+    @PostMapping(value = "setClass")
+    public ResultDTO<Void> setClass(HttpServletRequest request, HttpSession session) {
+        log.info("Calling setClass");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+        String userId = request.getParameter("userId");
+        if (userId == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        Long classId = null;
+        String classIdParam = request.getParameter("classId");
+        if (classIdParam != null && !classIdParam.isBlank()) {
+            try {
+                classId = Long.parseLong(classIdParam);
+            } catch (NumberFormatException e) {
+                return ResultDTO.error("INVALID_PARAMETER");
+            }
+        }
+
+        // Deciding who sits in which class is part of running the classes themselves.
+        if (!accessService.hasPermission(id, sessionUserId, RoleDTO.Permission.MANAGE_CLASS))
+            return ResultDTO.error("INVALID_ACCESS");
+        // A class from another kindergarten would silently detach the member from this one.
+        if (classId != null && !Long.valueOf(id).equals(accessService.getKindergartenOfClass(classId)))
+            return ResultDTO.error("INVALID_PARAMETER");
+        // Only actual members have a row to update; the owner may have none (see getMembers).
+        if (accessService.getMembership(id, userId) == null) return ResultDTO.error("NOT_FOUND");
+
+        try {
+            kindergartenService.setClass(id, userId, classId);
+        } catch (Exception e) {
+            log.info(e.toString());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+        return ResultDTO.success("UPDATE_COMPLETE");
+    }
+
     @PostMapping(value = "remove")
     public ResultDTO<Void> remove(HttpServletRequest request, HttpSession session) {
         log.info("Calling remove");

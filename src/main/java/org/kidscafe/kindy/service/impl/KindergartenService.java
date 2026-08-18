@@ -23,6 +23,7 @@ public class KindergartenService implements IKindergartenService {
     private final IScheduleMapper scheduleMapper;
     private final IFamilyMapper familyMapper;
     private final IInviteMapper inviteMapper;
+    private final IUserMapper userMapper;
     private final IAccessService accessService;
 
     @Override
@@ -49,12 +50,31 @@ public class KindergartenService implements IKindergartenService {
         return kindergartenMapper.getInfo(pDTO);
     }
 
+    /**
+     * Creates the kindergarten and enrols its owner as a member in the same transaction.
+     * <p>
+     * Access checks already treat the owner as a member ({@link IAccessService#isOwner}), but the
+     * <em>listings</em> — getMembers / getMemberships — read T_RELATIONSHIP directly, so an owner
+     * without a row would be missing from their own member list and would never see the
+     * kindergarten in their workspace list.
+     */
     @Transactional
     @Override
     public int create(KindergartenDTO pDTO) throws Exception {
         log.info("Calling create");
 
-        return kindergartenMapper.insert(pDTO);
+        int result = kindergartenMapper.insert(pDTO);
+        if (result == 1 && pDTO.getId() != null && pDTO.getOwner() != null) {
+            this.enrolOwner(pDTO.getId(), pDTO.getOwner());
+        }
+        return result;
+    }
+
+    /** Gives the owner a TEACHER membership if they don't already have one of any type. */
+    private void enrolOwner(long kindergartenId, String owner) throws Exception {
+        RelationshipDTO pDTO = RelationshipDTO.fromId(kindergartenId, owner);
+        pDTO.setType(RelationshipDTO.Type.TEACHER);
+        relationshipMapper.insertIfAbsent(pDTO);
     }
 
     @Transactional
@@ -73,7 +93,11 @@ public class KindergartenService implements IKindergartenService {
         KindergartenDTO pDTO = KindergartenDTO.fromId(id);
         pDTO.setOwner(userId);
 
-        return kindergartenMapper.updateOwner(pDTO);
+        int result = kindergartenMapper.updateOwner(pDTO);
+        // The controller only lets an existing member receive the kindergarten, so this is a
+        // safeguard rather than the normal path.
+        if (result == 1) this.enrolOwner(id, userId);
+        return result;
     }
 
     @Override
@@ -83,7 +107,37 @@ public class KindergartenService implements IKindergartenService {
         RelationshipDTO pDTO = new RelationshipDTO();
         pDTO.setKindergartenId(id);
 
-        return relationshipMapper.getList(pDTO);
+        List<RelationshipDTO> result = new java.util.ArrayList<>(relationshipMapper.getList(pDTO));
+
+        // Kindergartens created before owners were auto-enrolled have no row for their owner.
+        // They can still manage the place, so leaving them out of its member list is misleading.
+        KindergartenDTO kindergarten = kindergartenMapper.getInfo(KindergartenDTO.fromId(id));
+        if (kindergarten != null && kindergarten.getOwner() != null
+                && result.stream().noneMatch(r -> kindergarten.getOwner().equals(r.getUserId()))) {
+            result.add(this.impliedOwnerMembership(id, kindergarten.getName(), kindergarten.getOwner()));
+        }
+
+        return result;
+    }
+
+    /**
+     * A stand-in membership for an owner who has no T_RELATIONSHIP row, so listings agree with
+     * what {@link IAccessService} already allows. Nothing is written to the database here — the
+     * row itself is created by {@code create()} for new kindergartens and by the back-fill
+     * migration for existing ones.
+     */
+    private RelationshipDTO impliedOwnerMembership(long kindergartenId, String kindergartenName, String owner) {
+        RelationshipDTO rDTO = RelationshipDTO.fromId(kindergartenId, owner);
+        rDTO.setKindergartenName(kindergartenName);
+        rDTO.setType(RelationshipDTO.Type.TEACHER);
+        rDTO.setRoleIds(List.of());
+        try {
+            UserDTO user = userMapper.getInfo(UserDTO.fromId(owner));
+            if (user != null) rDTO.setUserName(user.getName());
+        } catch (Exception e) {
+            log.info("impliedOwnerMembership name lookup failed: {}", e.toString());
+        }
+        return rDTO;
     }
 
     @Override
@@ -94,6 +148,14 @@ public class KindergartenService implements IKindergartenService {
         pDTO.setUserId(userId);
 
         List<RelationshipDTO> result = new java.util.ArrayList<>(relationshipMapper.getListByUser(pDTO));
+
+        // Same reasoning as getMembers: an owner without a membership row would otherwise never
+        // see their own kindergarten in the workspace list.
+        for (KindergartenDTO owned : kindergartenMapper.getListByOwner(userId)) {
+            if (owned.getId() == null) continue;
+            if (result.stream().anyMatch(r -> owned.getId().equals(r.getKindergartenId()))) continue;
+            result.add(this.impliedOwnerMembership(owned.getId(), owned.getName(), userId));
+        }
 
         FamilyDTO fDTO = new FamilyDTO();
         fDTO.setParent(userId);
@@ -177,6 +239,17 @@ public class KindergartenService implements IKindergartenService {
         pDTO.setNickname(nickname);
 
         return relationshipMapper.updateNickname(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int setClass(long id, String userId, Long classId) throws Exception {
+        log.info("Calling setClass");
+
+        RelationshipDTO pDTO = RelationshipDTO.fromId(id, userId);
+        pDTO.setClassId(classId);
+
+        return relationshipMapper.updateClass(pDTO);
     }
 
     @Transactional

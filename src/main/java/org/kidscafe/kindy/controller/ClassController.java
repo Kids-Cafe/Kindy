@@ -201,7 +201,7 @@ public class ClassController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        if (!accessService.canManageClass(classId, userId, RoleDTO.Permission.MANAGE_CLASS))
+        if (!accessService.canManageClass(classId, userId, RoleDTO.Permission.MANAGE_PHOTO))
             return ResultDTO.error("INVALID_ACCESS");
         if (file == null || file.isEmpty()) return ResultDTO.error("MISSING_PARAMETER");
 
@@ -277,13 +277,13 @@ public class ClassController {
         }
     }
 
-    /** A photo is the uploader's to change; anyone else needs MANAGE_CLASS where it was posted. */
+    /** A photo is the uploader's to change; anyone else needs MANAGE_PHOTO where it was posted. */
     private boolean canEditPhoto(long photoId, String userId) throws Exception {
         PhotoDTO photo = classService.getPhotoInfo(photoId);
         if (photo == null || photo.getClassId() == null) return false;
         if (userId.equals(photo.getAuthor())) return true;
 
-        return accessService.canManageClass(photo.getClassId(), userId, RoleDTO.Permission.MANAGE_CLASS);
+        return accessService.canManageClass(photo.getClassId(), userId, RoleDTO.Permission.MANAGE_PHOTO);
     }
 
     @GetMapping(value = "supply/list")
