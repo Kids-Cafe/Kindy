@@ -3,25 +3,27 @@
 
 <mapper namespace="org.kidscafe.kindy.mapper.IRoleMapper">
     <select id="getList" resultType="RoleDTO">
-        SELECT ID, NAME
+        SELECT ID, KINDERGARTEN_ID, NAME, COLOR
         FROM T_ROLE
         WHERE KINDERGARTEN_ID = #{kindergartenId}
     </select>
 
     <select id="getInfo" resultType="RoleDTO">
-        SELECT ID, KINDERGARTEN_ID, NAME
+        SELECT ID, KINDERGARTEN_ID, NAME, COLOR
         FROM T_ROLE
         WHERE ID = #{id}
     </select>
 
     <insert id="insert">
-        INSERT INTO T_ROLE(KINDERGARTEN_ID, NAME)
-        VALUES (#{kindergartenId}, #{name})
+        INSERT INTO T_ROLE(KINDERGARTEN_ID, NAME, COLOR)
+        VALUES (#{kindergartenId}, #{name}, #{color})
     </insert>
 
+    <!-- COLOR is only overwritten when the caller supplies one, so a plain rename keeps the color. -->
     <update id="updateName">
         UPDATE T_ROLE
         SET NAME = #{name}
+        <if test="color != null">, COLOR = #{color}</if>
         WHERE ID = #{id}
     </update>
 

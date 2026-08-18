@@ -2,31 +2,68 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="org.kidscafe.kindy.mapper.IDiaryMapper">
-    <select id="selectList" resultType="DiaryDTO">
-        SELECT USER_ID, DATE, CONTENT, TAG, CREATED_AT
-        FROM T_DIARY
-        WHERE USER_ID = #{userId}
+    <!-- CONTENT is the diary body; the DTO calls it `text`, so it has to be mapped explicitly. -->
+    <resultMap id="diaryMap" type="DiaryDTO">
+        <id property="id" column="ID"/>
+        <result property="userId" column="USER_ID"/>
+        <result property="date" column="DATE"/>
+        <result property="mood" column="MOOD"/>
+        <result property="title" column="TITLE"/>
+        <result property="summary" column="SUMMARY"/>
+        <result property="text" column="CONTENT"/>
+        <result property="tag" column="TAG"/>
+        <result property="createdAt" column="CREATED_AT"/>
+        <collection property="tags" javaType="java.util.ArrayList" ofType="java.lang.String"
+                    select="selectTags" column="{diaryId=ID}"/>
+    </resultMap>
+
+    <select id="selectTags" resultType="java.lang.String">
+        SELECT TAG
+        FROM T_DIARY_TAG
+        WHERE DIARY_ID = #{diaryId}
+        ORDER BY ID
     </select>
 
-    <select id="select" resultType="DiaryDTO">
-        SELECT USER_ID, DATE, CONTENT, TAG, CREATED_AT
+    <sql id="columns">
+        ID, USER_ID, DATE, MOOD, TITLE, SUMMARY, CONTENT, TAG, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
+    </sql>
+
+    <select id="selectList" resultMap="diaryMap">
+        SELECT <include refid="columns"/>
+        FROM T_DIARY
+        WHERE USER_ID = #{userId}
+        ORDER BY DATE DESC
+    </select>
+
+    <select id="select" resultMap="diaryMap">
+        SELECT <include refid="columns"/>
         FROM T_DIARY
         WHERE USER_ID = #{userId} AND DATE = #{date}
     </select>
 
-    <insert id="insert">
-        INSERT INTO T_DIARY(USER_ID, DATE, CONTENT, TAG)
-        VALUES (#{userId}, #{date}, #{content}, #{tag})
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO T_DIARY(USER_ID, DATE, MOOD, TITLE, SUMMARY, CONTENT, TAG)
+        VALUES (#{userId}, #{date}, #{mood}, #{title}, #{summary}, #{text}, #{tag})
     </insert>
 
     <update id="update">
         UPDATE T_DIARY
-        SET CONTENT = #{content}, TAG = #{tag}
+        SET MOOD = #{mood}, TITLE = #{title}, SUMMARY = #{summary}, CONTENT = #{text}, TAG = #{tag}
         WHERE USER_ID = #{userId} AND DATE = #{date}
     </update>
 
     <delete id="delete">
         DELETE FROM T_DIARY
         WHERE USER_ID = #{userId} AND DATE = #{date}
+    </delete>
+
+    <insert id="insertTag">
+        INSERT INTO T_DIARY_TAG(DIARY_ID, TAG)
+        VALUES (#{diaryId}, #{tag})
+    </insert>
+
+    <delete id="deleteTags">
+        DELETE FROM T_DIARY_TAG
+        WHERE DIARY_ID = #{diaryId}
     </delete>
 </mapper>

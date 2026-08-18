@@ -123,6 +123,13 @@ class ChatService implements IChatService {
     }
 
     @Override
+    public int appendMessage(ChatDTO.MessageDTO pDTO) throws Exception {
+        log.info("Calling appendMessage");
+
+        return chatMessageMapper.insertNext(pDTO);
+    }
+
+    @Override
     public String transcribe(Resource resource) throws Exception {
         log.info("Calling transcribe");
         MultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();

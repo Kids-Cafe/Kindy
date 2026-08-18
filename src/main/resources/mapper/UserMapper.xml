@@ -86,6 +86,16 @@
         WHERE ID = #{id}
     </update>
 
+    <!-- Invite-flow lookup: partial match on login id or name, public fields only. -->
+    <select id="searchUsers" resultType="UserDTO">
+        SELECT ID, NAME, ACCOUNT_TYPE
+        FROM T_USER
+        WHERE ID LIKE CONCAT('%', #{q}, '%')
+           OR NAME LIKE CONCAT('%', #{q}, '%')
+        ORDER BY ID
+        LIMIT 20
+    </select>
+
     <update id="completeOnboarding">
         UPDATE T_USER
         SET ONBOARDING_COMPLETED = TRUE

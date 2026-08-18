@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.kidscafe.kindy.mapper.ISupplyCommentMapper">
+    <sql id="columns">
+        C.ID, C.SUPPLY_ID, C.AUTHOR, C.CONTENT,
+        UNIX_TIMESTAMP(C.CREATED_AT) * 1000 CREATED_AT,
+        (SELECT U.NAME FROM T_USER U WHERE U.ID = C.AUTHOR) AUTHOR_NAME
+    </sql>
+
+    <select id="selectList" resultType="org.kidscafe.kindy.dto.SupplyDTO$CommentDTO">
+        SELECT <include refid="columns"/>
+        FROM T_SUPPLY_COMMENT C
+        WHERE C.SUPPLY_ID = #{supplyId}
+        ORDER BY C.ID
+    </select>
+
+    <select id="select" resultType="org.kidscafe.kindy.dto.SupplyDTO$CommentDTO">
+        SELECT <include refid="columns"/>
+        FROM T_SUPPLY_COMMENT C
+        WHERE C.ID = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO T_SUPPLY_COMMENT(SUPPLY_ID, AUTHOR, CONTENT)
+        VALUES (#{supplyId}, #{author}, #{content})
+    </insert>
+
+    <delete id="delete">
+        DELETE FROM T_SUPPLY_COMMENT
+        WHERE ID = #{id}
+    </delete>
+</mapper>

@@ -7,6 +7,7 @@ import org.kidscafe.kindy.dto.PhotoDTO;
 import org.kidscafe.kindy.dto.SupplyDTO;
 import org.kidscafe.kindy.mapper.IClassMapper;
 import org.kidscafe.kindy.mapper.IPhotoMapper;
+import org.kidscafe.kindy.mapper.ISupplyCommentMapper;
 import org.kidscafe.kindy.mapper.ISupplyMapper;
 import org.kidscafe.kindy.service.IClassService;
 import org.springframework.core.io.Resource;
@@ -21,6 +22,7 @@ public class ClassService implements IClassService {
     private final IClassMapper classMapper;
     private final IPhotoMapper photoMapper;
     private final ISupplyMapper supplyMapper;
+    private final ISupplyCommentMapper supplyCommentMapper;
 
     @Override
     public List<ClassDTO> getList(long kindergartenId) throws Exception {
@@ -81,11 +83,8 @@ public class ClassService implements IClassService {
     }
 
     @Override
-    public int addPhoto(long id, Resource resource) throws Exception {
+    public int addPhoto(PhotoDTO pDTO, Resource resource) throws Exception {
         log.info("Calling addPhoto");
-
-        PhotoDTO pDTO = new PhotoDTO();
-        pDTO.setClassId(id);
 
         // TODO: save to cloud
         // pDTO.setUrl("URL");
@@ -93,6 +92,13 @@ public class ClassService implements IClassService {
         pDTO.setUrl(resource.getFilename()); // Temp
 
         return photoMapper.insert(pDTO);
+    }
+
+    @Override
+    public int updatePhoto(PhotoDTO pDTO) throws Exception {
+        log.info("Calling updatePhoto");
+
+        return photoMapper.update(pDTO);
     }
 
     @Override
@@ -147,5 +153,42 @@ public class ClassService implements IClassService {
         pDTO.setId(id);
 
         return supplyMapper.delete(pDTO);
+    }
+
+    @Override
+    public List<SupplyDTO.CommentDTO> getSupplyComments(long supplyId) throws Exception {
+        log.info("Calling getSupplyComments");
+
+        SupplyDTO.CommentDTO pDTO = new SupplyDTO.CommentDTO();
+        pDTO.setSupplyId(supplyId);
+
+        return supplyCommentMapper.selectList(pDTO);
+    }
+
+    @Override
+    public SupplyDTO.CommentDTO getSupplyComment(long id) throws Exception {
+        log.info("Calling getSupplyComment");
+
+        SupplyDTO.CommentDTO pDTO = new SupplyDTO.CommentDTO();
+        pDTO.setId(id);
+
+        return supplyCommentMapper.select(pDTO);
+    }
+
+    @Override
+    public int createSupplyComment(SupplyDTO.CommentDTO pDTO) throws Exception {
+        log.info("Calling createSupplyComment");
+
+        return supplyCommentMapper.insert(pDTO);
+    }
+
+    @Override
+    public int deleteSupplyComment(long id) throws Exception {
+        log.info("Calling deleteSupplyComment");
+
+        SupplyDTO.CommentDTO pDTO = new SupplyDTO.CommentDTO();
+        pDTO.setId(id);
+
+        return supplyCommentMapper.delete(pDTO);
     }
 }

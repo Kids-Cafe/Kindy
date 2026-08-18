@@ -2,21 +2,36 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="org.kidscafe.kindy.mapper.ISupplyMapper">
+    <sql id="authorName">
+        COALESCE(
+            (SELECT R.NICKNAME
+             FROM T_RELATIONSHIP R
+             JOIN T_CLASS C ON C.KINDERGARTEN_ID = R.KINDERGARTEN_ID
+             WHERE C.ID = S.CLASS_ID AND R.USER_ID = S.AUTHOR),
+            (SELECT U.NAME FROM T_USER U WHERE U.ID = S.AUTHOR)
+        ) AUTHOR_NAME
+    </sql>
+
     <select id="selectList" resultType="SupplyDTO">
-        SELECT ID, DATE, TITLE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
-        FROM T_SUPPLY
-        WHERE CLASS_ID = #{classId}
+        SELECT S.ID, S.CLASS_ID, S.DATE, S.TITLE, S.CONTENT, S.AUTHOR,
+               UNIX_TIMESTAMP(S.CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(S.UPDATED_AT) * 1000 UPDATED_AT,
+               <include refid="authorName"/>
+        FROM T_SUPPLY S
+        WHERE S.CLASS_ID = #{classId}
+        ORDER BY S.ID DESC
     </select>
 
     <select id="select" resultType="SupplyDTO">
-        SELECT ID, CLASS_ID, DATE, TITLE, CONTENT, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
-        FROM T_SUPPLY
-        WHERE ID = #{id}
+        SELECT S.ID, S.CLASS_ID, S.DATE, S.TITLE, S.CONTENT, S.AUTHOR,
+               UNIX_TIMESTAMP(S.CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(S.UPDATED_AT) * 1000 UPDATED_AT,
+               <include refid="authorName"/>
+        FROM T_SUPPLY S
+        WHERE S.ID = #{id}
     </select>
 
     <insert id="insert">
-        INSERT INTO T_SUPPLY(CLASS_ID, DATE, TITLE, CONTENT)
-        VALUES (#{classId}, #{date}, #{title}, #{content})
+        INSERT INTO T_SUPPLY(CLASS_ID, DATE, TITLE, CONTENT, AUTHOR)
+        VALUES (#{classId}, #{date}, #{title}, #{content}, #{author})
     </insert>
 
     <update id="update">

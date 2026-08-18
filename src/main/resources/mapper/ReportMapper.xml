@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.kidscafe.kindy.mapper.IReportMapper">
+    <select id="selectList" resultType="ReportDTO">
+        SELECT CHILD_ID, CATEGORY, DATA,
+               UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
+        FROM T_CHILD_REPORT
+        WHERE CHILD_ID = #{childId}
+    </select>
+
+    <select id="select" resultType="ReportDTO">
+        SELECT CHILD_ID, CATEGORY, DATA,
+               UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
+        FROM T_CHILD_REPORT
+        WHERE CHILD_ID = #{childId} AND CATEGORY = #{category}
+    </select>
+
+    <!-- One row per (child, category); saving the same category again replaces the blob. -->
+    <insert id="upsert">
+        INSERT INTO T_CHILD_REPORT(CHILD_ID, CATEGORY, DATA)
+        VALUES (#{childId}, #{category}, #{data})
+        ON DUPLICATE KEY UPDATE DATA = #{data}
+    </insert>
+
+    <delete id="delete">
+        DELETE FROM T_CHILD_REPORT
+        WHERE CHILD_ID = #{childId} AND CATEGORY = #{category}
+    </delete>
+</mapper>

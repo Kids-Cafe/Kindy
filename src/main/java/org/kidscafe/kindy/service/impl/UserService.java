@@ -5,9 +5,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.DiaryDTO;
 import org.kidscafe.kindy.dto.FamilyDTO;
+import org.kidscafe.kindy.dto.ParentNoteDTO;
+import org.kidscafe.kindy.dto.ReportDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.mapper.IDiaryMapper;
 import org.kidscafe.kindy.mapper.IFamilyMapper;
+import org.kidscafe.kindy.mapper.IParentNoteMapper;
+import org.kidscafe.kindy.mapper.IReportMapper;
 import org.kidscafe.kindy.mapper.IUserMapper;
 import org.kidscafe.kindy.service.IUserService;
 import org.kidscafe.kindy.util.EncryptUtil;
@@ -28,6 +32,8 @@ public class UserService implements IUserService {
     private final IUserMapper userMapper;
     private final IDiaryMapper diaryMapper;
     private final IFamilyMapper familyMapper;
+    private final IParentNoteMapper parentNoteMapper;
+    private final IReportMapper reportMapper;
     private final EncryptUtil encryptUtil;
     private final JavaMailSender mailSender;
 
@@ -200,7 +206,10 @@ public class UserService implements IUserService {
     public int createDiary(DiaryDTO pDTO) throws Exception {
         log.info("Calling createDiary");
 
-        return diaryMapper.insert(pDTO);
+        int result = diaryMapper.insert(pDTO);
+        this.replaceDiaryTags(pDTO);
+
+        return result;
     }
 
     @Transactional
@@ -208,7 +217,27 @@ public class UserService implements IUserService {
     public int updateDiary(DiaryDTO pDTO) throws Exception {
         log.info("Calling updateDiary");
 
-        return diaryMapper.update(pDTO);
+        int result = diaryMapper.update(pDTO);
+
+        // update() is keyed on (userId, date), so the id has to be read back before touching tags.
+        if (pDTO.getId() == null) {
+            DiaryDTO saved = diaryMapper.select(pDTO);
+            if (saved != null) pDTO.setId(saved.getId());
+        }
+        this.replaceDiaryTags(pDTO);
+
+        return result;
+    }
+
+    // A null tag list means "leave the tags alone"; an empty list clears them.
+    private void replaceDiaryTags(DiaryDTO pDTO) throws Exception {
+        if (pDTO.getId() == null || pDTO.getTags() == null) return;
+
+        diaryMapper.deleteTags(pDTO.getId());
+        for (String tag : pDTO.getTags()) {
+            if (tag == null || tag.isBlank()) continue;
+            diaryMapper.insertTag(pDTO.getId(), tag.trim());
+        }
     }
 
     @Transactional
@@ -220,7 +249,96 @@ public class UserService implements IUserService {
         pDTO.setUserId(id);
         pDTO.setDate(date);
 
+        DiaryDTO saved = diaryMapper.select(pDTO);
+        if (saved != null && saved.getId() != null) diaryMapper.deleteTags(saved.getId());
+
         return diaryMapper.delete(pDTO);
+    }
+
+    @Override
+    public List<UserDTO.PlainUserDTO> searchUsers(String q) throws Exception {
+        log.info("Calling searchUsers");
+
+        return userMapper.searchUsers(q).stream()
+                .map(u -> new UserDTO.PlainUserDTO(u.getId(), u.getName(), null, null, null, null, null,
+                        u.getAccountType(), null, null, null, null, null, null, null))
+                .toList();
+    }
+
+    @Override
+    public List<ParentNoteDTO> getParentNotes(String childId) throws Exception {
+        log.info("Calling getParentNotes");
+
+        ParentNoteDTO pDTO = new ParentNoteDTO();
+        pDTO.setChildId(childId);
+
+        return parentNoteMapper.selectList(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int createParentNote(ParentNoteDTO pDTO) throws Exception {
+        log.info("Calling createParentNote");
+
+        return parentNoteMapper.insert(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int deleteParentNote(long id) throws Exception {
+        log.info("Calling deleteParentNote");
+
+        ParentNoteDTO pDTO = new ParentNoteDTO();
+        pDTO.setId(id);
+
+        return parentNoteMapper.delete(pDTO);
+    }
+
+    @Override
+    public List<ParentNoteDTO.CommentDTO> getParentNoteComments(long noteId) throws Exception {
+        log.info("Calling getParentNoteComments");
+
+        ParentNoteDTO.CommentDTO pDTO = new ParentNoteDTO.CommentDTO();
+        pDTO.setNoteId(noteId);
+
+        return parentNoteMapper.selectCommentList(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int createParentNoteComment(ParentNoteDTO.CommentDTO pDTO) throws Exception {
+        log.info("Calling createParentNoteComment");
+
+        return parentNoteMapper.insertComment(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int deleteParentNoteComment(long id) throws Exception {
+        log.info("Calling deleteParentNoteComment");
+
+        ParentNoteDTO.CommentDTO pDTO = new ParentNoteDTO.CommentDTO();
+        pDTO.setId(id);
+
+        return parentNoteMapper.deleteComment(pDTO);
+    }
+
+    @Override
+    public List<ReportDTO> getReports(String childId) throws Exception {
+        log.info("Calling getReports");
+
+        ReportDTO pDTO = new ReportDTO();
+        pDTO.setChildId(childId);
+
+        return reportMapper.selectList(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int saveReport(ReportDTO pDTO) throws Exception {
+        log.info("Calling saveReport");
+
+        return reportMapper.upsert(pDTO);
     }
 
     @Override

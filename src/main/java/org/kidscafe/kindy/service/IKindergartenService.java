@@ -5,7 +5,7 @@ import org.kidscafe.kindy.dto.*;
 import java.util.List;
 
 public interface IKindergartenService {
-    List<KindergartenDTO> getList() throws Exception;
+    List<KindergartenDTO> getList(String q) throws Exception;
     KindergartenDTO getInfo(long id) throws Exception;
     KindergartenDTO getInfoByBrn(String brn) throws Exception;
     int create(KindergartenDTO pDTO) throws Exception;
@@ -15,6 +15,8 @@ public interface IKindergartenService {
     List<RelationshipDTO> getMemberships(String userId) throws Exception;
     int add(long id, String userId, RelationshipDTO.Type type) throws Exception;
     int assign(long id, String userId, long roleId) throws Exception;
+    int assignRole(long id, String userId, long roleId) throws Exception;
+    int unassignRole(long id, String userId, long roleId) throws Exception;
     int setNickname(long id, String userId, String nickname) throws Exception;
     int remove(long id, String userId) throws Exception;
     RelationshipDTO has(long id, String userId) throws Exception;
@@ -26,8 +28,8 @@ public interface IKindergartenService {
     List<InviteDTO> getInvites(long id) throws Exception;
     List<InviteDTO> getUserInvites(String userId) throws Exception;
     List<RoleDTO> getRoles(long id) throws Exception;
-    int createRole(long id, String name) throws Exception;
-    int renameRole(long roleId, String name) throws Exception;
+    int createRole(long id, String name, String color) throws Exception;
+    int renameRole(long roleId, String name, String color) throws Exception;
     int deleteRole(long roleId) throws Exception;
     List<RoleDTO.Permission> getRolePermissions(long roleId) throws Exception;
     boolean hasRolePermission(long roleId, RoleDTO.Permission permission) throws Exception;

@@ -5,19 +5,20 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
+/**
+ * A note a teacher writes about one child, visible to that child's parents.
+ * Parents (and the author) reply with {@link CommentDTO}.
+ */
 @Getter
 @Setter
 @ToString
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class SupplyDTO {
+public class ParentNoteDTO {
     private Long id;
-    private Long classId;
-    private String date;
-    private String title;
-    private String content;
+    private String childId;
     private String author;
+    private String content;
     private Long createdAt;
-    private Long updatedAt;
 
     private String authorName;
 
@@ -27,7 +28,7 @@ public class SupplyDTO {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class CommentDTO {
         private Long id;
-        private Long supplyId;
+        private Long noteId;
         private String author;
         private String content;
         private Long createdAt;

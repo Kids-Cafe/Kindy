@@ -2,9 +2,16 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="org.kidscafe.kindy.mapper.IKindergartenMapper">
+    <!-- `q` filters by name or address so signup search doesn't have to pull the whole table. -->
     <select id="getList" resultType="KindergartenDTO">
-        SELECT ID, NAME, ADDRESS
+        SELECT ID, NAME, ADDRESS, ADDRESS_DETAIL, POSTCODE
         FROM T_KINDERGARTEN
+        <if test="q != null">
+            WHERE NAME LIKE CONCAT('%', #{q}, '%')
+               OR ADDRESS LIKE CONCAT('%', #{q}, '%')
+        </if>
+        ORDER BY NAME
+        LIMIT 100
     </select>
 
     <select id="getInfo" resultType="KindergartenDTO">
@@ -14,7 +21,7 @@
            OR BRN = #{brn}
     </select>
 
-    <insert id="insert">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO T_KINDERGARTEN(NAME, BRN, OWNER, ADDRESS, ADDRESS_DETAIL, POSTCODE)
         VALUES (#{name}, #{brn}, #{owner}, #{address}, #{addressDetail}, #{postcode})
     </insert>

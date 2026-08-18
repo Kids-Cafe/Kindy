@@ -17,6 +17,7 @@ public class NoticeDTO {
     private String content;
     private String author;
     private Boolean pinned;
+    private Boolean bannerEnabled;
     private Long createdAt;
     private Long updatedAt;
 

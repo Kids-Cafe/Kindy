@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.DiaryDTO;
 import org.kidscafe.kindy.dto.FamilyDTO;
 import org.kidscafe.kindy.dto.InviteDTO;
+import org.kidscafe.kindy.dto.ParentNoteDTO;
+import org.kidscafe.kindy.dto.ReportDTO;
 import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.service.IKindergartenService;
@@ -15,6 +17,7 @@ import org.kidscafe.kindy.util.EncryptUtil;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
@@ -387,6 +390,7 @@ public class UserController {
         pDTO.setUserId(userId);
         pDTO.setDate(request.getParameter("date"));
         if (pDTO.getDate() == null) return ResultDTO.error("MISSING_PARAMETER");
+        if (!this.applyDiaryFields(pDTO, request)) return ResultDTO.error("INVALID_PARAMETER");
 
         try {
             userService.createDiary(pDTO);
@@ -408,7 +412,7 @@ public class UserController {
         pDTO.setUserId(userId);
         pDTO.setDate(request.getParameter("date"));
         if (pDTO.getDate() == null) return ResultDTO.error("MISSING_PARAMETER");
-        pDTO.setTag(request.getParameter("tag"));
+        if (!this.applyDiaryFields(pDTO, request)) return ResultDTO.error("INVALID_PARAMETER");
 
         try {
             userService.updateDiary(pDTO);
@@ -431,6 +435,249 @@ public class UserController {
         try {
             userService.deleteDiary(userId, date);
             return ResultDTO.success("DELETE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    /**
+     * Copies the optional diary body fields off the request. `tags` is a comma-separated list;
+     * leaving it out keeps whatever tags the entry already has. Returns false on a bad mood value.
+     */
+    private boolean applyDiaryFields(DiaryDTO pDTO, HttpServletRequest request) {
+        pDTO.setTitle(request.getParameter("title"));
+        pDTO.setSummary(request.getParameter("summary"));
+        pDTO.setText(request.getParameter("text"));
+
+        String mood = request.getParameter("mood");
+        if (mood != null && !mood.isBlank()) {
+            try {
+                pDTO.setMood(DiaryDTO.Mood.valueOf(mood));
+            } catch (IllegalArgumentException e) {
+                return false;
+            }
+        }
+
+        String tags = request.getParameter("tags");
+        if (tags != null) {
+            pDTO.setTags(Arrays.stream(tags.split(","))
+                    .map(String::trim)
+                    .filter(t -> !t.isEmpty())
+                    .toList());
+        }
+
+        return true;
+    }
+
+    // Invite-flow lookup by partial login id or name. Public fields only, capped server-side.
+    @GetMapping(value = "search")
+    public ResultDTO<List<UserDTO.PlainUserDTO>> search(HttpServletRequest request, HttpSession session) {
+        log.info("Calling search");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        String q = request.getParameter("q");
+        if (q == null) return ResultDTO.error("MISSING_PARAMETER");
+        q = q.trim();
+        if (q.length() < 2) return ResultDTO.error("INVALID_PARAMETER");
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", userService.searchUsers(q));
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @GetMapping(value = "note/list")
+    public ResultDTO<List<ParentNoteDTO>> noteList(HttpServletRequest request, HttpSession session) {
+        log.info("Calling noteList");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        String childId = request.getParameter("childId");
+        if (childId == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        // TODO: Access check — only the child's parents and their teachers should see these
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", userService.getParentNotes(childId));
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @PostMapping(value = "note/create")
+    public ResultDTO<Void> createNote(HttpServletRequest request, HttpSession session) {
+        log.info("Calling createNote");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        ParentNoteDTO pDTO = new ParentNoteDTO();
+        pDTO.setChildId(request.getParameter("childId"));
+        if (pDTO.getChildId() == null) return ResultDTO.error("MISSING_PARAMETER");
+        pDTO.setContent(request.getParameter("content"));
+        if (pDTO.getContent() == null) return ResultDTO.error("MISSING_PARAMETER");
+        pDTO.setAuthor(userId);
+
+        // TODO: Access check
+
+        try {
+            userService.createParentNote(pDTO);
+            return ResultDTO.success("CREATE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @PostMapping(value = "note/delete")
+    public ResultDTO<Void> deleteNote(HttpServletRequest request, HttpSession session) {
+        log.info("Calling deleteNote");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        try {
+            userService.deleteParentNote(id);
+            return ResultDTO.success("DELETE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @GetMapping(value = "note/comment/list")
+    public ResultDTO<List<ParentNoteDTO.CommentDTO>> noteCommentList(HttpServletRequest request, HttpSession session) {
+        log.info("Calling noteCommentList");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long noteId;
+        try {
+            noteId = Long.parseLong(request.getParameter("noteId"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", userService.getParentNoteComments(noteId));
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @PostMapping(value = "note/comment/create")
+    public ResultDTO<Void> createNoteComment(HttpServletRequest request, HttpSession session) {
+        log.info("Calling createNoteComment");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long noteId;
+        try {
+            noteId = Long.parseLong(request.getParameter("noteId"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        ParentNoteDTO.CommentDTO pDTO = new ParentNoteDTO.CommentDTO();
+        pDTO.setNoteId(noteId);
+        pDTO.setAuthor(userId);
+        pDTO.setContent(request.getParameter("content"));
+        if (pDTO.getContent() == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        try {
+            userService.createParentNoteComment(pDTO);
+            return ResultDTO.success("CREATE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @PostMapping(value = "note/comment/delete")
+    public ResultDTO<Void> deleteNoteComment(HttpServletRequest request, HttpSession session) {
+        log.info("Calling deleteNoteComment");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        try {
+            userService.deleteParentNoteComment(id);
+            return ResultDTO.success("DELETE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    // One row per (child, category); `data` is the category's JSON blob, stored verbatim.
+    @GetMapping(value = "report/list")
+    public ResultDTO<List<ReportDTO>> reportList(HttpServletRequest request, HttpSession session) {
+        log.info("Calling reportList");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        String childId = request.getParameter("childId");
+        if (childId == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        // TODO: Access check
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", userService.getReports(childId));
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @PostMapping(value = "report/save")
+    public ResultDTO<Void> saveReport(HttpServletRequest request, HttpSession session) {
+        log.info("Calling saveReport");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        ReportDTO pDTO = new ReportDTO();
+        pDTO.setChildId(request.getParameter("childId"));
+        if (pDTO.getChildId() == null) return ResultDTO.error("MISSING_PARAMETER");
+        pDTO.setData(request.getParameter("data"));
+        if (pDTO.getData() == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        // TODO: Access check
+
+        try {
+            pDTO.setCategory(ReportDTO.Category.valueOf(request.getParameter("category")));
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        try {
+            userService.saveReport(pDTO);
+            return ResultDTO.success("SAVE_COMPLETE");
         } catch (Exception e) {
             log.info(e.getMessage());
             return ResultDTO.error("UNKNOWN_ERROR");

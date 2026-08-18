@@ -2,6 +2,34 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="org.kidscafe.kindy.mapper.IRelationshipMapper">
+    <!--
+        A member may hold several roles (T_RELATIONSHIP_ROLE); the scalar ROLE_ID column is the
+        legacy single-role field and is still populated by assign() for backwards compatibility.
+    -->
+    <resultMap id="relationshipMap" type="RelationshipDTO">
+        <id property="kindergartenId" column="KINDERGARTEN_ID"/>
+        <id property="userId" column="USER_ID"/>
+        <result property="kindergartenName" column="KINDERGARTEN_NAME"/>
+        <result property="userName" column="USER_NAME"/>
+        <result property="type" column="TYPE"/>
+        <result property="classId" column="CLASS_ID"/>
+        <result property="roleId" column="ROLE_ID"/>
+        <result property="roleName" column="ROLE_NAME"/>
+        <result property="nickname" column="NICKNAME"/>
+        <result property="createdAt" column="CREATED_AT"/>
+        <result property="updatedAt" column="UPDATED_AT"/>
+        <collection property="roleIds" javaType="java.util.ArrayList" ofType="java.lang.Long"
+                    select="selectRoleIds" column="{kindergartenId=KINDERGARTEN_ID,userId=USER_ID}"/>
+    </resultMap>
+
+    <select id="selectRoleIds" resultType="java.lang.Long">
+        SELECT ROLE_ID
+        FROM T_RELATIONSHIP_ROLE
+        WHERE KINDERGARTEN_ID = #{kindergartenId}
+          AND USER_ID = #{userId}
+        ORDER BY ROLE_ID
+    </select>
+
     <select id="getExists" resultType="RelationshipDTO">
         SELECT COUNT(*) > 0 AS `EXISTS`
         FROM T_RELATIONSHIP
@@ -9,25 +37,30 @@
           AND USER_ID = #{userId}
     </select>
 
-    <select id="getList" resultType="RelationshipDTO">
-        SELECT USER_ID, TYPE, NICKNAME
-        FROM T_RELATIONSHIP
-        WHERE KINDERGARTEN_ID = #{kindergartenId}
+    <select id="getList" resultMap="relationshipMap">
+        SELECT R.KINDERGARTEN_ID, R.USER_ID, U.NAME USER_NAME, R.TYPE, R.CLASS_ID, R.ROLE_ID, RO.NAME ROLE_NAME, R.NICKNAME
+        FROM T_RELATIONSHIP R
+        JOIN T_USER U ON U.ID = R.USER_ID
+        LEFT JOIN T_ROLE RO ON RO.ID = R.ROLE_ID
+        WHERE R.KINDERGARTEN_ID = #{kindergartenId}
     </select>
 
-    <select id="getListByUser" resultType="RelationshipDTO">
-        SELECT R.KINDERGARTEN_ID, K.NAME KINDERGARTEN_NAME, R.USER_ID, R.TYPE, R.ROLE_ID, RO.NAME ROLE_NAME, R.NICKNAME
+    <select id="getListByUser" resultMap="relationshipMap">
+        SELECT R.KINDERGARTEN_ID, K.NAME KINDERGARTEN_NAME, R.USER_ID, U.NAME USER_NAME, R.TYPE, R.CLASS_ID, R.ROLE_ID, RO.NAME ROLE_NAME, R.NICKNAME
         FROM T_RELATIONSHIP R
         JOIN T_KINDERGARTEN K ON K.ID = R.KINDERGARTEN_ID
+        JOIN T_USER U ON U.ID = R.USER_ID
         LEFT JOIN T_ROLE RO ON RO.ID = R.ROLE_ID
         WHERE R.USER_ID = #{userId}
     </select>
 
-    <select id="getInfo" resultType="RelationshipDTO">
-        SELECT KINDERGARTEN_ID, USER_ID, TYPE, ROLE_ID, NICKNAME, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
-        FROM T_RELATIONSHIP
-        WHERE KINDERGARTEN_ID = #{kindergartenId}
-          AND USER_ID = #{userId}
+    <select id="getInfo" resultMap="relationshipMap">
+        SELECT R.KINDERGARTEN_ID, R.USER_ID, U.NAME USER_NAME, R.TYPE, R.CLASS_ID, R.ROLE_ID, R.NICKNAME,
+               UNIX_TIMESTAMP(R.CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(R.UPDATED_AT) * 1000 UPDATED_AT
+        FROM T_RELATIONSHIP R
+        JOIN T_USER U ON U.ID = R.USER_ID
+        WHERE R.KINDERGARTEN_ID = #{kindergartenId}
+          AND R.USER_ID = #{userId}
     </select>
 
     <insert id="insert">
@@ -48,6 +81,24 @@
         WHERE KINDERGARTEN_ID = #{kindergartenId}
           AND USER_ID = #{userId}
     </update>
+
+    <insert id="insertRole">
+        INSERT IGNORE INTO T_RELATIONSHIP_ROLE(KINDERGARTEN_ID, USER_ID, ROLE_ID)
+        VALUES (#{kindergartenId}, #{userId}, #{roleId})
+    </insert>
+
+    <delete id="deleteRole">
+        DELETE FROM T_RELATIONSHIP_ROLE
+        WHERE KINDERGARTEN_ID = #{kindergartenId}
+          AND USER_ID = #{userId}
+          AND ROLE_ID = #{roleId}
+    </delete>
+
+    <delete id="deleteRoles">
+        DELETE FROM T_RELATIONSHIP_ROLE
+        WHERE KINDERGARTEN_ID = #{kindergartenId}
+          AND USER_ID = #{userId}
+    </delete>
 
     <delete id="delete">
         DELETE FROM T_RELATIONSHIP

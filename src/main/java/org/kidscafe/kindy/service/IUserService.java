@@ -2,6 +2,8 @@ package org.kidscafe.kindy.service;
 
 import org.kidscafe.kindy.dto.DiaryDTO;
 import org.kidscafe.kindy.dto.FamilyDTO;
+import org.kidscafe.kindy.dto.ParentNoteDTO;
+import org.kidscafe.kindy.dto.ReportDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 
 import java.util.List;
@@ -27,4 +29,13 @@ public interface IUserService {
     int addFamily(String parent, String child) throws Exception;
     int removeFamily(String parent, String child) throws Exception;
     int completeOnboarding(String id) throws Exception;
+    List<UserDTO.PlainUserDTO> searchUsers(String q) throws Exception;
+    List<ParentNoteDTO> getParentNotes(String childId) throws Exception;
+    int createParentNote(ParentNoteDTO pDTO) throws Exception;
+    int deleteParentNote(long id) throws Exception;
+    List<ParentNoteDTO.CommentDTO> getParentNoteComments(long noteId) throws Exception;
+    int createParentNoteComment(ParentNoteDTO.CommentDTO pDTO) throws Exception;
+    int deleteParentNoteComment(long id) throws Exception;
+    List<ReportDTO> getReports(String childId) throws Exception;
+    int saveReport(ReportDTO pDTO) throws Exception;
 }

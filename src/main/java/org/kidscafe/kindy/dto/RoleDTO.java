@@ -14,6 +14,7 @@ public class RoleDTO {
     private Long id;
     private Long kindergartenId;
     private String name;
+    private String color;
 
     public enum Permission {
         MANAGE_NOTICE,

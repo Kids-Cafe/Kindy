@@ -17,10 +17,10 @@
     <select id="select" resultType="ChatDTO">
         SELECT ID, KINDERGARTEN_ID, CLIENT, HOST, CREATED_AT
         FROM T_CHAT
-        WHERE KINDERGARTEN_ID = #{kindergartenId}
+        WHERE ID = #{id}
     </select>
 
-    <insert id="insert">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO T_CHAT(KINDERGARTEN_ID, CLIENT, HOST)
         VALUES (#{kindergartenId}, #{client}, #{host})
     </insert>

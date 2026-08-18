@@ -14,5 +14,8 @@ public interface IRelationshipMapper {
     int insert(RelationshipDTO pDTO) throws Exception;
     int updateRole(RelationshipDTO pDTO) throws Exception;
     int updateNickname(RelationshipDTO pDTO) throws Exception;
+    int insertRole(RelationshipDTO pDTO) throws Exception;
+    int deleteRole(RelationshipDTO pDTO) throws Exception;
+    int deleteRoles(RelationshipDTO pDTO) throws Exception;
     int delete(RelationshipDTO pDTO) throws Exception;
 }

@@ -187,9 +187,45 @@ public class ClassController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
+        PhotoDTO pDTO = new PhotoDTO();
+        pDTO.setClassId(classId);
+        pDTO.setAuthor(userId);
+        pDTO.setCaption(request.getParameter("caption"));
+        pDTO.setTheme(request.getParameter("theme"));
+
         try {
-            classService.addPhoto(classId, file.getResource());
+            classService.addPhoto(pDTO, file.getResource());
             return ResultDTO.success("ADD_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.toString());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    // Caption and theme are set at upload time but editable afterwards; omitting one leaves it alone.
+    @PostMapping(value = "photo/edit")
+    public ResultDTO<Void> editPhoto(HttpServletRequest request, HttpSession session) {
+        log.info("Calling editPhoto");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        PhotoDTO pDTO = new PhotoDTO();
+        pDTO.setId(id);
+        pDTO.setCaption(request.getParameter("caption"));
+        pDTO.setTheme(request.getParameter("theme"));
+        if (pDTO.getCaption() == null && pDTO.getTheme() == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        try {
+            classService.updatePhoto(pDTO);
+            return ResultDTO.success("EDIT_COMPLETE");
         } catch (Exception e) {
             log.info(e.toString());
             return ResultDTO.error("UNKNOWN_ERROR");
@@ -283,6 +319,7 @@ public class ClassController {
         pDTO.setTitle(request.getParameter("title"));
         if (pDTO.getTitle() == null) return ResultDTO.error("MISSING_PARAMETER");
         pDTO.setContent(request.getParameter("content"));
+        pDTO.setAuthor(userId);
 
         try {
             classService.createSupply(pDTO);
@@ -341,6 +378,85 @@ public class ClassController {
 
         try {
             classService.deleteSupply(id);
+            return ResultDTO.success("DELETE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.toString());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @GetMapping(value = "supply/comment/list")
+    public ResultDTO<List<SupplyDTO.CommentDTO>> supplyCommentList(HttpServletRequest request, HttpSession session) {
+        log.info("Calling supplyCommentList");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long supplyId;
+        try {
+            supplyId = Long.parseLong(request.getParameter("supplyId"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", classService.getSupplyComments(supplyId));
+        } catch (Exception e) {
+            log.info(e.toString());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @PostMapping(value = "supply/comment/create")
+    public ResultDTO<Void> createSupplyComment(HttpServletRequest request, HttpSession session) {
+        log.info("Calling createSupplyComment");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long supplyId;
+        try {
+            supplyId = Long.parseLong(request.getParameter("supplyId"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        SupplyDTO.CommentDTO pDTO = new SupplyDTO.CommentDTO();
+        pDTO.setSupplyId(supplyId);
+        pDTO.setAuthor(userId);
+        pDTO.setContent(request.getParameter("content"));
+        if (pDTO.getContent() == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        try {
+            classService.createSupplyComment(pDTO);
+            return ResultDTO.success("CREATE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.toString());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @PostMapping(value = "supply/comment/delete")
+    public ResultDTO<Void> deleteSupplyComment(HttpServletRequest request, HttpSession session) {
+        log.info("Calling deleteSupplyComment");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        try {
+            // Only the author may remove their own comment; broader moderation waits on permissions.
+            SupplyDTO.CommentDTO target = classService.getSupplyComment(id);
+            if (target == null) return ResultDTO.error("NOT_FOUND");
+            if (!userId.equals(target.getAuthor())) return ResultDTO.error("INVALID_ACCESS");
+
+            classService.deleteSupplyComment(id);
             return ResultDTO.success("DELETE_COMPLETE");
         } catch (Exception e) {
             log.info(e.toString());

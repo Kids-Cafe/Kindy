@@ -18,6 +18,8 @@ public interface IChatService {
     List<ChatDTO.MessageDTO> getMessages(long id, int num, boolean reversed) throws Exception;
     List<ChatDTO.MessageDTO> getMessages(long id, long timestamp, int num) throws Exception;
     int addMessage(ChatDTO.MessageDTO pDTO) throws Exception;
+    /** Appends with a NUM assigned by the database instead of by the caller. */
+    int appendMessage(ChatDTO.MessageDTO pDTO) throws Exception;
     String transcribe(Resource resource) throws Exception;
     Resource synthesize(String text) throws Exception;
     Resource convert(Resource resource) throws Exception;

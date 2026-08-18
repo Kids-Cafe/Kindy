@@ -24,10 +24,10 @@ public class KindergartenService implements IKindergartenService {
     private final IInviteMapper inviteMapper;
 
     @Override
-    public List<KindergartenDTO> getList() throws Exception {
+    public List<KindergartenDTO> getList(String q) throws Exception {
         log.info("Calling getList");
 
-        return kindergartenMapper.getList();
+        return kindergartenMapper.getList(q);
     }
 
     @Override
@@ -127,7 +127,43 @@ public class KindergartenService implements IKindergartenService {
         RelationshipDTO pDTO = RelationshipDTO.fromId(id, userId);
         pDTO.setRoleId(roleId);
 
+        // Keeps the legacy scalar column and the join table in step, so callers that still read
+        // RelationshipDTO.roleId keep seeing the most recently assigned role.
+        relationshipMapper.insertRole(pDTO);
+
         return relationshipMapper.updateRole(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int assignRole(long id, String userId, long roleId) throws Exception {
+        log.info("Calling assignRole");
+
+        RelationshipDTO pDTO = RelationshipDTO.fromId(id, userId);
+        pDTO.setRoleId(roleId);
+
+        return relationshipMapper.insertRole(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int unassignRole(long id, String userId, long roleId) throws Exception {
+        log.info("Calling unassignRole");
+
+        RelationshipDTO pDTO = RelationshipDTO.fromId(id, userId);
+        pDTO.setRoleId(roleId);
+
+        int result = relationshipMapper.deleteRole(pDTO);
+
+        // The scalar column would otherwise still point at a role the member no longer holds.
+        RelationshipDTO current = relationshipMapper.getInfo(pDTO);
+        if (current != null && current.getRoleId() != null && current.getRoleId() == roleId) {
+            RelationshipDTO clear = RelationshipDTO.fromId(id, userId);
+            clear.setRoleId(null);
+            relationshipMapper.updateRole(clear);
+        }
+
+        return result;
     }
 
     @Transactional
@@ -145,6 +181,8 @@ public class KindergartenService implements IKindergartenService {
     @Override
     public int remove(long id, String userId) throws Exception {
         log.info("Calling remove");
+
+        relationshipMapper.deleteRoles(RelationshipDTO.fromId(id, userId));
 
         return relationshipMapper.delete(RelationshipDTO.fromId(id, userId));
     }
@@ -276,23 +314,25 @@ public class KindergartenService implements IKindergartenService {
 
     @Transactional
     @Override
-    public int createRole(long id, String name) throws Exception {
+    public int createRole(long id, String name, String color) throws Exception {
         log.info("Calling createRole");
 
         RoleDTO pDTO = new RoleDTO();
         pDTO.setKindergartenId(id);
         pDTO.setName(name);
+        pDTO.setColor(color);
 
         return roleMapper.insert(pDTO);
     }
 
     @Override
-    public int renameRole(long roleId, String name) throws Exception {
+    public int renameRole(long roleId, String name, String color) throws Exception {
         log.info("Calling renameRole");
 
         RoleDTO pDTO = new RoleDTO();
         pDTO.setId(roleId);
         pDTO.setName(name);
+        pDTO.setColor(color);
 
         return roleMapper.updateName(pDTO);
     }

@@ -31,6 +31,12 @@
         VALUES (#{chatId}, #{num}, #{type}, #{content}, #{role})
     </insert>
 
+    <!-- Appends with a server-assigned NUM so concurrent senders can't pick the same one. -->
+    <insert id="insertNext">
+        INSERT INTO T_CHAT_MESSAGE(CHAT_ID, NUM, TYPE, CONTENT, ROLE)
+        VALUES (#{chatId}, (SELECT IFNULL(MAX(M.NUM), 0) + 1 FROM T_CHAT_MESSAGE M WHERE M.CHAT_ID = #{chatId}), #{type}, #{content}, #{role})
+    </insert>
+
     <delete id="delete">
         DELETE FROM T_CHAT_MESSAGE
         WHERE CHAT_ID = #{chatId} AND NUM = #{num}

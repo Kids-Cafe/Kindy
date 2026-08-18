@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.kidscafe.kindy.mapper.IParentNoteMapper">
+    <sql id="noteColumns">
+        N.ID, N.CHILD_ID, N.AUTHOR, N.CONTENT,
+        UNIX_TIMESTAMP(N.CREATED_AT) * 1000 CREATED_AT,
+        (SELECT U.NAME FROM T_USER U WHERE U.ID = N.AUTHOR) AUTHOR_NAME
+    </sql>
+
+    <select id="selectList" resultType="ParentNoteDTO">
+        SELECT <include refid="noteColumns"/>
+        FROM T_PARENT_NOTE N
+        WHERE N.CHILD_ID = #{childId}
+        ORDER BY N.ID DESC
+    </select>
+
+    <select id="select" resultType="ParentNoteDTO">
+        SELECT <include refid="noteColumns"/>
+        FROM T_PARENT_NOTE N
+        WHERE N.ID = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO T_PARENT_NOTE(CHILD_ID, AUTHOR, CONTENT)
+        VALUES (#{childId}, #{author}, #{content})
+    </insert>
+
+    <delete id="delete">
+        DELETE FROM T_PARENT_NOTE
+        WHERE ID = #{id}
+    </delete>
+
+    <sql id="commentColumns">
+        C.ID, C.NOTE_ID, C.AUTHOR, C.CONTENT,
+        UNIX_TIMESTAMP(C.CREATED_AT) * 1000 CREATED_AT,
+        (SELECT U.NAME FROM T_USER U WHERE U.ID = C.AUTHOR) AUTHOR_NAME
+    </sql>
+
+    <select id="selectCommentList" resultType="org.kidscafe.kindy.dto.ParentNoteDTO$CommentDTO">
+        SELECT <include refid="commentColumns"/>
+        FROM T_PARENT_NOTE_COMMENT C
+        WHERE C.NOTE_ID = #{noteId}
+        ORDER BY C.ID
+    </select>
+
+    <select id="selectComment" resultType="org.kidscafe.kindy.dto.ParentNoteDTO$CommentDTO">
+        SELECT <include refid="commentColumns"/>
+        FROM T_PARENT_NOTE_COMMENT C
+        WHERE C.ID = #{id}
+    </select>
+
+    <insert id="insertComment" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO T_PARENT_NOTE_COMMENT(NOTE_ID, AUTHOR, CONTENT)
+        VALUES (#{noteId}, #{author}, #{content})
+    </insert>
+
+    <delete id="deleteComment">
+        DELETE FROM T_PARENT_NOTE_COMMENT
+        WHERE ID = #{id}
+    </delete>
+</mapper>

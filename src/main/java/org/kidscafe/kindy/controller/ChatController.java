@@ -49,6 +49,69 @@ public class ChatController {
         }
     }
 
+    // Returns the created chat (with its generated id) so the caller can start sending immediately.
+    @PostMapping(value = "create")
+    public ResultDTO<ChatDTO> create(HttpSession session,
+                                     @RequestParam long kindergartenId,
+                                     @RequestParam(required = false) String host,
+                                     @RequestParam(required = false) String client) {
+        log.info("Calling create");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        // The session user is one side of the chat unless they said otherwise.
+        if (host == null) host = userId;
+        if (client == null) client = userId;
+        if (!userId.equals(host) && !userId.equals(client)) return ResultDTO.error("INVALID_ACCESS");
+
+        ChatDTO pDTO = new ChatDTO();
+        pDTO.setKindergartenId(kindergartenId);
+        pDTO.setHost(host);
+        pDTO.setClient(client);
+
+        try {
+            chatService.create(pDTO);
+            return ResultDTO.success("CREATE_COMPLETE", pDTO);
+        } catch (Exception e) {
+            log.info(e.toString());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    // NUM is assigned by the database, so two senders racing on the same chat can't collide.
+    @PostMapping(value = "send")
+    public ResultDTO<Void> send(HttpSession session,
+                                @RequestParam long chatId,
+                                @RequestParam String content,
+                                @RequestParam(required = false) String type,
+                                @RequestParam(required = false) String role) {
+        log.info("Calling send");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        try {
+            ChatDTO chat = chatService.getInfo(chatId);
+            if (chat == null) return ResultDTO.error("NOT_FOUND");
+            if (!userId.equals(chat.getHost()) && !userId.equals(chat.getClient())) return ResultDTO.error("INVALID_ACCESS");
+
+            ChatDTO.MessageDTO pDTO = new ChatDTO.MessageDTO();
+            pDTO.setChatId(chatId);
+            pDTO.setContent(content);
+            pDTO.setType(type == null ? ChatDTO.MessageDTO.Type.TEXT : ChatDTO.MessageDTO.Type.valueOf(type));
+            pDTO.setRole(role == null ? ChatDTO.MessageDTO.Role.user : ChatDTO.MessageDTO.Role.valueOf(role));
+
+            chatService.appendMessage(pDTO);
+            return ResultDTO.success("SEND_COMPLETE");
+        } catch (IllegalArgumentException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        } catch (Exception e) {
+            log.info(e.toString());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
     @PostMapping(value = "transcribe", produces = "text/plain")
     public String transcribe(@RequestParam(value = "file") MultipartFile file) throws Exception {
         log.info("Calling transcribe");
