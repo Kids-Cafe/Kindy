@@ -14,6 +14,7 @@ public interface IClassService {
     int updateName(long id, String name) throws Exception;
     int delete(long id) throws Exception;
     List<PhotoDTO> getPhotos(long id) throws Exception;
+    PhotoDTO getPhotoInfo(long photoId) throws Exception;
     int addPhoto(PhotoDTO pDTO, Resource resource) throws Exception;
     int updatePhoto(PhotoDTO pDTO) throws Exception;
     int removePhoto(long photoId) throws Exception;

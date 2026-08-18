@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.*;
 import org.kidscafe.kindy.mapper.*;
+import org.kidscafe.kindy.service.IAccessService;
 import org.kidscafe.kindy.service.IKindergartenService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,7 @@ public class KindergartenService implements IKindergartenService {
     private final IScheduleMapper scheduleMapper;
     private final IFamilyMapper familyMapper;
     private final IInviteMapper inviteMapper;
+    private final IAccessService accessService;
 
     @Override
     public List<KindergartenDTO> getList(String q) throws Exception {
@@ -271,14 +273,14 @@ public class KindergartenService implements IKindergartenService {
         return inviteMapper.updateStatus(invite);
     }
 
-    // Only the invitee may accept/reject an INVITE; only an existing teacher may accept/reject a JOIN
-    // request, since the finer-grained MANAGE_MEMBER permission check is out of scope for this pass.
+    // Only the invitee may accept/reject an INVITE; a JOIN request is answered by whoever manages
+    // members at the kindergarten it was sent to.
     private void checkInviteCounterparty(InviteDTO invite, String userId) throws Exception {
         if (invite.getDirection() == InviteDTO.Direction.INVITE) {
             if (!userId.equals(invite.getUserId())) throw new IllegalAccessException();
         } else {
-            RelationshipDTO admin = relationshipMapper.getInfo(RelationshipDTO.fromId(invite.getKindergartenId(), userId));
-            if (admin == null || admin.getType() != RelationshipDTO.Type.TEACHER) throw new IllegalAccessException();
+            if (!accessService.hasPermission(invite.getKindergartenId(), userId, RoleDTO.Permission.MANAGE_MEMBER))
+                throw new IllegalAccessException();
         }
     }
 

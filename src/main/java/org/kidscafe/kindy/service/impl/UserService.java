@@ -275,6 +275,16 @@ public class UserService implements IUserService {
         return parentNoteMapper.selectList(pDTO);
     }
 
+    @Override
+    public ParentNoteDTO getParentNote(long id) throws Exception {
+        log.info("Calling getParentNote");
+
+        ParentNoteDTO pDTO = new ParentNoteDTO();
+        pDTO.setId(id);
+
+        return parentNoteMapper.select(pDTO);
+    }
+
     @Transactional
     @Override
     public int createParentNote(ParentNoteDTO pDTO) throws Exception {
@@ -302,6 +312,16 @@ public class UserService implements IUserService {
         pDTO.setNoteId(noteId);
 
         return parentNoteMapper.selectCommentList(pDTO);
+    }
+
+    @Override
+    public ParentNoteDTO.CommentDTO getParentNoteComment(long id) throws Exception {
+        log.info("Calling getParentNoteComment");
+
+        ParentNoteDTO.CommentDTO pDTO = new ParentNoteDTO.CommentDTO();
+        pDTO.setId(id);
+
+        return parentNoteMapper.selectComment(pDTO);
     }
 
     @Transactional

@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.ChatDTO;
 import org.kidscafe.kindy.dto.ResultDTO;
+import org.kidscafe.kindy.service.IAccessService;
 import org.kidscafe.kindy.service.IChatService;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,6 +18,7 @@ import java.util.List;
 @RequestMapping("/api/chat")
 public class ChatController {
     private final IChatService chatService;
+    private final IAccessService accessService;
 
     @GetMapping(value = "list")
     public ResultDTO<List<ChatDTO>> list(HttpSession session, @RequestParam long kindergartenId) {
@@ -26,7 +28,14 @@ public class ChatController {
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
 
         try {
-            if (kindergartenId > 0) return ResultDTO.success("QUERY_COMPLETE", chatService.getList(kindergartenId));
+            // A conversation is private to its two sides, so the kindergarten filter narrows the
+            // user's own chats rather than exposing everyone else's.
+            if (kindergartenId > 0) {
+                if (!accessService.canView(kindergartenId, userId)) return ResultDTO.error("INVALID_ACCESS");
+                return ResultDTO.success("QUERY_COMPLETE", chatService.getList(kindergartenId).stream()
+                        .filter(c -> userId.equals(c.getHost()) || userId.equals(c.getClient()))
+                        .toList());
+            }
             return ResultDTO.success("QUERY_COMPLETE", chatService.getList(userId));
         } catch (Exception e) {
             log.info(e.getMessage());
@@ -42,7 +51,11 @@ public class ChatController {
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
 
         try {
-            return ResultDTO.success("QUERY_COMPLETE", chatService.getInfo(id));
+            ChatDTO rDTO = chatService.getInfo(id);
+            if (rDTO == null) return ResultDTO.error("NOT_FOUND");
+            if (!isParticipant(rDTO, userId)) return ResultDTO.error("INVALID_ACCESS");
+
+            return ResultDTO.success("QUERY_COMPLETE", rDTO);
         } catch (Exception e) {
             log.info(e.getMessage());
             return ResultDTO.error("UNKNOWN_ERROR");
@@ -64,6 +77,12 @@ public class ChatController {
         if (host == null) host = userId;
         if (client == null) client = userId;
         if (!userId.equals(host) && !userId.equals(client)) return ResultDTO.error("INVALID_ACCESS");
+
+        // Both sides have to belong to the kindergarten the chat is filed under, otherwise anyone
+        // could open a thread with a stranger by naming an arbitrary kindergarten.
+        if (!accessService.canView(kindergartenId, userId)) return ResultDTO.error("INVALID_ACCESS");
+        String other = userId.equals(host) ? client : host;
+        if (!accessService.canView(kindergartenId, other)) return ResultDTO.error("INVALID_PARAMETER");
 
         ChatDTO pDTO = new ChatDTO();
         pDTO.setKindergartenId(kindergartenId);
@@ -94,7 +113,7 @@ public class ChatController {
         try {
             ChatDTO chat = chatService.getInfo(chatId);
             if (chat == null) return ResultDTO.error("NOT_FOUND");
-            if (!userId.equals(chat.getHost()) && !userId.equals(chat.getClient())) return ResultDTO.error("INVALID_ACCESS");
+            if (!isParticipant(chat, userId)) return ResultDTO.error("INVALID_ACCESS");
 
             ChatDTO.MessageDTO pDTO = new ChatDTO.MessageDTO();
             pDTO.setChatId(chatId);
@@ -113,8 +132,13 @@ public class ChatController {
     }
 
     @PostMapping(value = "transcribe", produces = "text/plain")
-    public String transcribe(@RequestParam(value = "file") MultipartFile file) throws Exception {
+    public String transcribe(HttpSession session, @RequestParam(value = "file") MultipartFile file) throws Exception {
         log.info("Calling transcribe");
+
+        // Not tied to a chat, but it bills an external API, so it isn't open to anonymous callers.
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return "";
+
         String result = chatService.transcribe(file.getResource());
         log.info(result);
         return result;
@@ -128,10 +152,19 @@ public class ChatController {
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
 
         try {
+            ChatDTO chat = chatService.getInfo(id);
+            if (chat == null) return ResultDTO.error("NOT_FOUND");
+            if (!isParticipant(chat, userId)) return ResultDTO.error("INVALID_ACCESS");
+
             return ResultDTO.success("QUERY_COMPLETE", chatService.getMessages(id));
         } catch (Exception e) {
             log.info(e.getMessage());
             return ResultDTO.error("UNKNOWN_ERROR");
         }
+    }
+
+    /** Chats are two-sided: only the host and the client may read or write one. */
+    private static boolean isParticipant(ChatDTO chat, String userId) {
+        return userId.equals(chat.getHost()) || userId.equals(chat.getClient());
     }
 }

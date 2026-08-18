@@ -3,9 +3,29 @@
 
 <mapper namespace="org.kidscafe.kindy.mapper.IPermissionMapper">
     <select id="getList" resultType="org.kidscafe.kindy.dto.RoleDTO$PermissionDTO">
-        SELECT PERMISSION
+        SELECT ROLE_ID, PERMISSION
         FROM T_PERMISSION
         WHERE ROLE_ID = #{roleId}
+    </select>
+
+    <!--
+        The permissions one member holds in one kindergarten. Roles come from the join table plus
+        the legacy scalar T_RELATIONSHIP.ROLE_ID, and the T_ROLE join makes sure a role that was
+        moved or belongs elsewhere can't grant anything here.
+    -->
+    <select id="getListByUser" resultType="org.kidscafe.kindy.dto.RoleDTO$PermissionDTO">
+        SELECT DISTINCT P.ROLE_ID, P.PERMISSION
+        FROM T_PERMISSION P
+        JOIN T_ROLE RO ON RO.ID = P.ROLE_ID AND RO.KINDERGARTEN_ID = #{kindergartenId}
+        WHERE P.ROLE_ID IN (
+            SELECT RR.ROLE_ID
+            FROM T_RELATIONSHIP_ROLE RR
+            WHERE RR.KINDERGARTEN_ID = #{kindergartenId} AND RR.USER_ID = #{userId}
+            UNION
+            SELECT R.ROLE_ID
+            FROM T_RELATIONSHIP R
+            WHERE R.KINDERGARTEN_ID = #{kindergartenId} AND R.USER_ID = #{userId} AND R.ROLE_ID IS NOT NULL
+        )
     </select>
 
     <select id="getInfo" resultType="org.kidscafe.kindy.dto.RoleDTO$PermissionDTO">

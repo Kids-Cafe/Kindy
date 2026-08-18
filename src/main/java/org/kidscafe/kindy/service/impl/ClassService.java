@@ -83,6 +83,16 @@ public class ClassService implements IClassService {
     }
 
     @Override
+    public PhotoDTO getPhotoInfo(long photoId) throws Exception {
+        log.info("Calling getPhotoInfo");
+
+        PhotoDTO pDTO = new PhotoDTO();
+        pDTO.setId(photoId);
+
+        return photoMapper.select(pDTO);
+    }
+
+    @Override
     public int addPhoto(PhotoDTO pDTO, Resource resource) throws Exception {
         log.info("Calling addPhoto");
 

@@ -11,6 +11,7 @@ import org.kidscafe.kindy.dto.ParentNoteDTO;
 import org.kidscafe.kindy.dto.ReportDTO;
 import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.dto.UserDTO;
+import org.kidscafe.kindy.service.IAccessService;
 import org.kidscafe.kindy.service.IKindergartenService;
 import org.kidscafe.kindy.service.IUserService;
 import org.kidscafe.kindy.util.EncryptUtil;
@@ -27,6 +28,7 @@ import java.util.List;
 public class UserController {
     private final IUserService userService;
     private final IKindergartenService kindergartenService;
+    private final IAccessService accessService;
     private final EncryptUtil encryptUtil;
 
     @GetMapping(value = "getIdExists")
@@ -366,10 +368,17 @@ public class UserController {
     public ResultDTO<DiaryDTO> diaryInfo(HttpServletRequest request, HttpSession session) {
         log.info("Calling diaryInfo");
 
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        // Defaults to the caller's own diary; reading someone else's needs the same standing as
+        // their other child records.
         String userId = request.getParameter("userId");
-        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+        if (userId == null) userId = sessionUserId;
         String date = request.getParameter("date");
         if (date == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        if (!accessService.canViewChild(sessionUserId, userId)) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             return ResultDTO.success("QUERY_COMPLETE", userService.getDiaryInfo(userId, date));
@@ -501,7 +510,7 @@ public class UserController {
         String childId = request.getParameter("childId");
         if (childId == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        // TODO: Access check — only the child's parents and their teachers should see these
+        if (!accessService.canViewChild(userId, childId)) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             return ResultDTO.success("QUERY_COMPLETE", userService.getParentNotes(childId));
@@ -525,7 +534,8 @@ public class UserController {
         if (pDTO.getContent() == null) return ResultDTO.error("MISSING_PARAMETER");
         pDTO.setAuthor(userId);
 
-        // TODO: Access check
+        // A note is written *about* a child, so the child themself can't be the one writing it.
+        if (!accessService.canManageChild(userId, pDTO.getChildId())) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             userService.createParentNote(pDTO);
@@ -551,6 +561,12 @@ public class UserController {
         }
 
         try {
+            ParentNoteDTO note = userService.getParentNote(id);
+            if (note == null) return ResultDTO.error("NOT_FOUND");
+            // The author, or anyone else who could have written it about that child.
+            if (!userId.equals(note.getAuthor()) && !accessService.canManageChild(userId, note.getChildId()))
+                return ResultDTO.error("INVALID_ACCESS");
+
             userService.deleteParentNote(id);
             return ResultDTO.success("DELETE_COMPLETE");
         } catch (Exception e) {
@@ -573,6 +589,8 @@ public class UserController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
+        if (!this.canAccessNote(noteId, userId)) return ResultDTO.error("INVALID_ACCESS");
+
         try {
             return ResultDTO.success("QUERY_COMPLETE", userService.getParentNoteComments(noteId));
         } catch (Exception e) {
@@ -594,6 +612,8 @@ public class UserController {
         } catch (NumberFormatException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         }
+
+        if (!this.canAccessNote(noteId, userId)) return ResultDTO.error("INVALID_ACCESS");
 
         ParentNoteDTO.CommentDTO pDTO = new ParentNoteDTO.CommentDTO();
         pDTO.setNoteId(noteId);
@@ -625,12 +645,27 @@ public class UserController {
         }
 
         try {
+            ParentNoteDTO.CommentDTO comment = userService.getParentNoteComment(id);
+            if (comment == null) return ResultDTO.error("NOT_FOUND");
+            // Own comment, or moderation by whoever manages the child the note is about.
+            if (!userId.equals(comment.getAuthor())) {
+                String childId = accessService.getChildOfNote(comment.getNoteId());
+                if (childId == null || !accessService.canManageChild(userId, childId))
+                    return ResultDTO.error("INVALID_ACCESS");
+            }
+
             userService.deleteParentNoteComment(id);
             return ResultDTO.success("DELETE_COMPLETE");
         } catch (Exception e) {
             log.info(e.getMessage());
             return ResultDTO.error("UNKNOWN_ERROR");
         }
+    }
+
+    /** Comments live under a note, so they inherit that note's child-level read access. */
+    private boolean canAccessNote(long noteId, String userId) {
+        String childId = accessService.getChildOfNote(noteId);
+        return childId != null && accessService.canViewChild(userId, childId);
     }
 
     // One row per (child, category); `data` is the category's JSON blob, stored verbatim.
@@ -644,7 +679,7 @@ public class UserController {
         String childId = request.getParameter("childId");
         if (childId == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        // TODO: Access check
+        if (!accessService.canViewChild(userId, childId)) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             return ResultDTO.success("QUERY_COMPLETE", userService.getReports(childId));
@@ -667,7 +702,8 @@ public class UserController {
         pDTO.setData(request.getParameter("data"));
         if (pDTO.getData() == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        // TODO: Access check
+        // A report is written about a child by their teacher or parent, never by the child.
+        if (!accessService.canManageChild(userId, pDTO.getChildId())) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             pDTO.setCategory(ReportDTO.Category.valueOf(request.getParameter("category")));

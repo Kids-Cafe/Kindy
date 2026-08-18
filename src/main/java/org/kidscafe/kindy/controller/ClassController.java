@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.*;
+import org.kidscafe.kindy.service.IAccessService;
 import org.kidscafe.kindy.service.impl.ClassService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +22,7 @@ import java.util.List;
 @RestController
 public class ClassController {
     private final ClassService classService;
+    private final IAccessService accessService;
 
     @GetMapping(value = "list")
     public ResultDTO<List<ClassDTO>> list(HttpServletRequest request, HttpSession session) {
@@ -29,17 +31,17 @@ public class ClassController {
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
 
-        long id;
+        long kindergartenId;
         try {
-            id = Long.parseLong(request.getParameter("id"));
+            kindergartenId = Long.parseLong(request.getParameter("kindergartenId"));
         } catch (NumberFormatException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: Permission check
+        if (!accessService.canView(kindergartenId, sessionUserId)) return ResultDTO.error("INVALID_ACCESS");
 
         try {
-            return ResultDTO.success("QUERY_COMPLETE", classService.getList(id));
+            return ResultDTO.success("QUERY_COMPLETE", classService.getList(kindergartenId));
         } catch (Exception e) {
             return ResultDTO.error("UNKNOWN_ERROR");
         }
@@ -59,7 +61,7 @@ public class ClassController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: check if the user has access
+        if (!accessService.canViewClass(id, userId)) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             return ResultDTO.success("QUERY_COMPLETE", classService.getInfo(id));
@@ -75,10 +77,18 @@ public class ClassController {
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
 
-        // TODO: check if the user has access
+        long kindergartenId;
+        try {
+            kindergartenId = Long.parseLong(request.getParameter("kindergartenId"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        if (!accessService.hasPermission(kindergartenId, userId, RoleDTO.Permission.MANAGE_CLASS))
+            return ResultDTO.error("INVALID_ACCESS");
 
         ClassDTO pDTO = new ClassDTO();
-        pDTO.setKindergartenId(Long.parseLong(request.getParameter("kindergartenId")));
+        pDTO.setKindergartenId(kindergartenId);
         pDTO.setName(request.getParameter("name"));
         if (pDTO.getName() == null) return ResultDTO.error("MISSING_PARAMETER");
         try {
@@ -110,7 +120,8 @@ public class ClassController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: check if the user has access
+        if (!accessService.canManageClass(id, userId, RoleDTO.Permission.MANAGE_CLASS))
+            return ResultDTO.error("INVALID_ACCESS");
 
         String name = request.getParameter("name");
         if (name == null) return ResultDTO.error("MISSING_PARAMETER");
@@ -140,7 +151,8 @@ public class ClassController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: check if the user has access
+        if (!accessService.canManageClass(id, userId, RoleDTO.Permission.MANAGE_CLASS))
+            return ResultDTO.error("INVALID_ACCESS");
 
         try {
             classService.delete(id);
@@ -165,6 +177,8 @@ public class ClassController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
+        if (!accessService.canViewClass(classId, userId)) return ResultDTO.error("INVALID_ACCESS");
+
         try {
             return ResultDTO.success("QUERY_COMPLETE", classService.getPhotos(classId));
         } catch (Exception e) {
@@ -186,6 +200,10 @@ public class ClassController {
         } catch (NumberFormatException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         }
+
+        if (!accessService.canManageClass(classId, userId, RoleDTO.Permission.MANAGE_CLASS))
+            return ResultDTO.error("INVALID_ACCESS");
+        if (file == null || file.isEmpty()) return ResultDTO.error("MISSING_PARAMETER");
 
         PhotoDTO pDTO = new PhotoDTO();
         pDTO.setClassId(classId);
@@ -224,6 +242,8 @@ public class ClassController {
         if (pDTO.getCaption() == null && pDTO.getTheme() == null) return ResultDTO.error("MISSING_PARAMETER");
 
         try {
+            if (!this.canEditPhoto(id, userId)) return ResultDTO.error("INVALID_ACCESS");
+
             classService.updatePhoto(pDTO);
             return ResultDTO.success("EDIT_COMPLETE");
         } catch (Exception e) {
@@ -247,12 +267,23 @@ public class ClassController {
         }
 
         try {
+            if (!this.canEditPhoto(id, userId)) return ResultDTO.error("INVALID_ACCESS");
+
             classService.removePhoto(id);
             return ResultDTO.success("REMOVE_COMPLETE");
         } catch (Exception e) {
             log.info(e.toString());
             return ResultDTO.error("UNKNOWN_ERROR");
         }
+    }
+
+    /** A photo is the uploader's to change; anyone else needs MANAGE_CLASS where it was posted. */
+    private boolean canEditPhoto(long photoId, String userId) throws Exception {
+        PhotoDTO photo = classService.getPhotoInfo(photoId);
+        if (photo == null || photo.getClassId() == null) return false;
+        if (userId.equals(photo.getAuthor())) return true;
+
+        return accessService.canManageClass(photo.getClassId(), userId, RoleDTO.Permission.MANAGE_CLASS);
     }
 
     @GetMapping(value = "supply/list")
@@ -268,6 +299,8 @@ public class ClassController {
         } catch (NumberFormatException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         }
+
+        if (!accessService.canViewClass(classId, userId)) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             return ResultDTO.success("QUERY_COMPLETE", classService.getSupplies(classId));
@@ -292,7 +325,11 @@ public class ClassController {
         }
 
         try {
-            return ResultDTO.success("QUERY_COMPLETE", classService.getSupplyInfo(id));
+            SupplyDTO rDTO = classService.getSupplyInfo(id);
+            if (rDTO == null) return ResultDTO.error("NOT_FOUND");
+            if (!accessService.canViewClass(rDTO.getClassId(), userId)) return ResultDTO.error("INVALID_ACCESS");
+
+            return ResultDTO.success("QUERY_COMPLETE", rDTO);
         } catch (Exception e) {
             return ResultDTO.error("UNKNOWN_ERROR");
         }
@@ -311,6 +348,9 @@ public class ClassController {
         } catch (NumberFormatException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         }
+
+        if (!accessService.canManageClass(classId, userId, RoleDTO.Permission.MANAGE_SUPPLY))
+            return ResultDTO.error("INVALID_ACCESS");
 
         SupplyDTO pDTO = new SupplyDTO();
         pDTO.setClassId(classId);
@@ -337,13 +377,19 @@ public class ClassController {
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
 
-        long classId, id;
+        long id;
         try {
-            classId = Long.parseLong(request.getParameter("classId"));
             id = Long.parseLong(request.getParameter("id"));
         } catch (NumberFormatException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         }
+
+        // The update is keyed on the supply's id, so the class has to come from the row itself —
+        // a `classId` in the request would say nothing about where the supply actually lives.
+        Long classId = accessService.getClassOfSupply(id);
+        if (classId == null) return ResultDTO.error("NOT_FOUND");
+        if (!accessService.canManageClass(classId, userId, RoleDTO.Permission.MANAGE_SUPPLY))
+            return ResultDTO.error("INVALID_ACCESS");
 
         SupplyDTO pDTO = new SupplyDTO();
         pDTO.setId(id);
@@ -376,6 +422,11 @@ public class ClassController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
+        Long classId = accessService.getClassOfSupply(id);
+        if (classId == null) return ResultDTO.error("NOT_FOUND");
+        if (!accessService.canManageClass(classId, userId, RoleDTO.Permission.MANAGE_SUPPLY))
+            return ResultDTO.error("INVALID_ACCESS");
+
         try {
             classService.deleteSupply(id);
             return ResultDTO.success("DELETE_COMPLETE");
@@ -399,6 +450,10 @@ public class ClassController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
+        Long classId = accessService.getClassOfSupply(supplyId);
+        if (classId == null) return ResultDTO.error("NOT_FOUND");
+        if (!accessService.canViewClass(classId, userId)) return ResultDTO.error("INVALID_ACCESS");
+
         try {
             return ResultDTO.success("QUERY_COMPLETE", classService.getSupplyComments(supplyId));
         } catch (Exception e) {
@@ -420,6 +475,11 @@ public class ClassController {
         } catch (NumberFormatException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         }
+
+        // Commenting is what parents do on a supply notice, so plain class access is enough.
+        Long classId = accessService.getClassOfSupply(supplyId);
+        if (classId == null) return ResultDTO.error("NOT_FOUND");
+        if (!accessService.canViewClass(classId, userId)) return ResultDTO.error("INVALID_ACCESS");
 
         SupplyDTO.CommentDTO pDTO = new SupplyDTO.CommentDTO();
         pDTO.setSupplyId(supplyId);
@@ -451,10 +511,14 @@ public class ClassController {
         }
 
         try {
-            // Only the author may remove their own comment; broader moderation waits on permissions.
+            // The author removes their own comment; MANAGE_SUPPLY moderates anyone's.
             SupplyDTO.CommentDTO target = classService.getSupplyComment(id);
             if (target == null) return ResultDTO.error("NOT_FOUND");
-            if (!userId.equals(target.getAuthor())) return ResultDTO.error("INVALID_ACCESS");
+            if (!userId.equals(target.getAuthor())) {
+                Long classId = accessService.getClassOfSupply(target.getSupplyId());
+                if (classId == null || !accessService.canManageClass(classId, userId, RoleDTO.Permission.MANAGE_SUPPLY))
+                    return ResultDTO.error("INVALID_ACCESS");
+            }
 
             classService.deleteSupplyComment(id);
             return ResultDTO.success("DELETE_COMPLETE");

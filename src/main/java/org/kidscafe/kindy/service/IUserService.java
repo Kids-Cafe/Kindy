@@ -31,9 +31,11 @@ public interface IUserService {
     int completeOnboarding(String id) throws Exception;
     List<UserDTO.PlainUserDTO> searchUsers(String q) throws Exception;
     List<ParentNoteDTO> getParentNotes(String childId) throws Exception;
+    ParentNoteDTO getParentNote(long id) throws Exception;
     int createParentNote(ParentNoteDTO pDTO) throws Exception;
     int deleteParentNote(long id) throws Exception;
     List<ParentNoteDTO.CommentDTO> getParentNoteComments(long noteId) throws Exception;
+    ParentNoteDTO.CommentDTO getParentNoteComment(long id) throws Exception;
     int createParentNoteComment(ParentNoteDTO.CommentDTO pDTO) throws Exception;
     int deleteParentNoteComment(long id) throws Exception;
     List<ReportDTO> getReports(String childId) throws Exception;

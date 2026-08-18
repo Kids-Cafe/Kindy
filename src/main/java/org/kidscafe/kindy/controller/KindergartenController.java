@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.*;
+import org.kidscafe.kindy.service.IAccessService;
 import org.kidscafe.kindy.service.IKindergartenService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +21,7 @@ import java.util.List;
 @RestController
 public class KindergartenController {
     private final IKindergartenService kindergartenService;
+    private final IAccessService accessService;
 
     // `q` is optional: with it, this is the signup-time kindergarten search; without it, the
     // (capped) full list, as before.
@@ -57,14 +59,28 @@ public class KindergartenController {
             id = -1;
         }
 
-        // TODO: check if the user has access
-
         try {
-            if (brn != null) return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getInfoByBrn(brn));
-            return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getInfo(id));
+            KindergartenDTO rDTO = brn != null ? kindergartenService.getInfoByBrn(brn) : kindergartenService.getInfo(id);
+            if (rDTO == null) return ResultDTO.error("KINDERGARTEN_NOT_FOUND");
+
+            // Signup search needs to resolve a kindergarten before the user belongs to it, so
+            // outsiders still get the public fields — but not the owner or the BRN.
+            if (!accessService.canView(rDTO.getId(), userId)) return ResultDTO.success("QUERY_COMPLETE", publicInfo(rDTO));
+
+            return ResultDTO.success("QUERY_COMPLETE", rDTO);
         } catch (Exception e) {
             return ResultDTO.error("UNKNOWN_ERROR");
         }
+    }
+
+    /** The subset of a kindergarten anyone signed in may see — the same fields `list` returns. */
+    private static KindergartenDTO publicInfo(KindergartenDTO pDTO) {
+        KindergartenDTO rDTO = KindergartenDTO.fromId(pDTO.getId());
+        rDTO.setName(pDTO.getName());
+        rDTO.setAddress(pDTO.getAddress());
+        rDTO.setAddressDetail(pDTO.getAddressDetail());
+        rDTO.setPostcode(pDTO.getPostcode());
+        return rDTO;
     }
 
     // Returns the created row (with its generated id) so the caller doesn't have to look it up by BRN.
@@ -127,10 +143,12 @@ public class KindergartenController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: Owner verification
+        if (!accessService.isOwner(id, userId)) return ResultDTO.error("INVALID_ACCESS");
 
         String owner = (request.getParameter("owner"));
         if (owner == null) return ResultDTO.error("MISSING_PARAMETER");
+        // Handing the kindergarten to someone who isn't in it would lock everyone out of it.
+        if (!accessService.isMember(id, owner)) return ResultDTO.error("INVALID_PARAMETER");
 
         try {
             int res = kindergartenService.transfer(id, owner);
@@ -159,7 +177,7 @@ public class KindergartenController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: Permission check
+        if (!accessService.canView(id, sessionUserId)) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getMembers(id));
@@ -231,7 +249,11 @@ public class KindergartenController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: Permission check
+        if (!accessService.hasPermission(id, sessionUserId, RoleDTO.Permission.MANAGE_MEMBER))
+            return ResultDTO.error("INVALID_ACCESS");
+        // A role from another kindergarten would grant nothing here and confuse the members list.
+        if (roleId != null && !Long.valueOf(id).equals(accessService.getKindergartenOfRole(roleId)))
+            return ResultDTO.error("INVALID_PARAMETER");
 
         try {
             kindergartenService.inviteUser(id, sessionUserId, userId, RelationshipDTO.Type.valueOf(type), roleId);
@@ -335,7 +357,8 @@ public class KindergartenController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: Permission check
+        if (!accessService.hasPermission(id, sessionUserId, RoleDTO.Permission.MANAGE_MEMBER))
+            return ResultDTO.error("INVALID_ACCESS");
 
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getInvites(id));
@@ -362,7 +385,8 @@ public class KindergartenController {
         if (userId == null) return ResultDTO.error("MISSING_PARAMETER");
         String type = request.getParameter("type");
 
-        // TODO: Permission check
+        if (!accessService.hasPermission(id, sessionUserId, RoleDTO.Permission.MANAGE_MEMBER))
+            return ResultDTO.error("INVALID_ACCESS");
 
         try {
             kindergartenService.add(id, userId, RelationshipDTO.Type.valueOf(type));
@@ -396,6 +420,11 @@ public class KindergartenController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
+        if (!accessService.hasPermission(id, sessionUserId, RoleDTO.Permission.MANAGE_MEMBER))
+            return ResultDTO.error("INVALID_ACCESS");
+        if (!Long.valueOf(id).equals(accessService.getKindergartenOfRole(roleId)))
+            return ResultDTO.error("INVALID_PARAMETER");
+
         try {
             kindergartenService.assign(id, userId, roleId);
         } catch (Exception e) {
@@ -422,6 +451,13 @@ public class KindergartenController {
         if (userId == null) return ResultDTO.error("MISSING_PARAMETER");
         String nickname = request.getParameter("nickname");
 
+        // Members rename themselves; renaming anyone else is member management.
+        if (!sessionUserId.equals(userId)
+                && !accessService.hasPermission(id, sessionUserId, RoleDTO.Permission.MANAGE_MEMBER))
+            return ResultDTO.error("INVALID_ACCESS");
+        if (sessionUserId.equals(userId) && !accessService.isMember(id, sessionUserId))
+            return ResultDTO.error("INVALID_ACCESS");
+
         try {
             kindergartenService.setNickname(id, userId, nickname);
         } catch (Exception e) {
@@ -446,7 +482,12 @@ public class KindergartenController {
         String userId = request.getParameter("userId");
         if (userId == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        // TODO: Permission check
+        // Anyone may leave; removing someone else needs MANAGE_MEMBER. The owner can't be removed
+        // at all — transfer the kindergarten first.
+        if (!sessionUserId.equals(userId)
+                && !accessService.hasPermission(id, sessionUserId, RoleDTO.Permission.MANAGE_MEMBER))
+            return ResultDTO.error("INVALID_ACCESS");
+        if (accessService.isOwner(id, userId)) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             kindergartenService.remove(id, userId);
@@ -472,7 +513,10 @@ public class KindergartenController {
         String userId = request.getParameter("userId");
         if (userId == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        // TODO: Permission check
+        // Asking about yourself is always fine; asking about someone else means you have to be in
+        // the kindergarten too.
+        if (!sessionUserId.equals(userId) && !accessService.canView(id, sessionUserId))
+            return ResultDTO.error("INVALID_ACCESS");
 
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.has(id, userId));
@@ -495,7 +539,7 @@ public class KindergartenController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: Permission check
+        if (!accessService.canView(kindergartenId, sessionUserId)) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getRoles(kindergartenId));
@@ -521,7 +565,8 @@ public class KindergartenController {
         if (name == null) return ResultDTO.error("INVALID_PARAMETER");
         String color = request.getParameter("color");
 
-        // TODO: Permission check
+        if (!accessService.hasPermission(kindergartenId, sessionUserId, RoleDTO.Permission.MANAGE_MEMBER))
+            return ResultDTO.error("INVALID_ACCESS");
 
         try {
             kindergartenService.createRole(kindergartenId, name, color);
@@ -546,6 +591,10 @@ public class KindergartenController {
         } catch (NumberFormatException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         }
+
+        Long kindergartenId = accessService.getKindergartenOfRole(id);
+        if (kindergartenId == null) return ResultDTO.error("ROLE_NOT_FOUND");
+        if (!accessService.canView(kindergartenId, sessionUserId)) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getRolePermissions(id));
@@ -572,6 +621,11 @@ public class KindergartenController {
         if (name == null) return ResultDTO.error("INVALID_PARAMETER");
         String color = request.getParameter("color");
 
+        Long kindergartenId = accessService.getKindergartenOfRole(id);
+        if (kindergartenId == null) return ResultDTO.error("ROLE_NOT_FOUND");
+        if (!accessService.hasPermission(kindergartenId, sessionUserId, RoleDTO.Permission.MANAGE_MEMBER))
+            return ResultDTO.error("INVALID_ACCESS");
+
         try {
             kindergartenService.renameRole(id, name, color);
             return ResultDTO.success("UPDATE_COMPLETE");
@@ -593,6 +647,11 @@ public class KindergartenController {
         } catch (NumberFormatException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         }
+
+        Long kindergartenId = accessService.getKindergartenOfRole(id);
+        if (kindergartenId == null) return ResultDTO.error("ROLE_NOT_FOUND");
+        if (!accessService.hasPermission(kindergartenId, sessionUserId, RoleDTO.Permission.MANAGE_MEMBER))
+            return ResultDTO.error("INVALID_ACCESS");
 
         try {
             kindergartenService.deleteRole(id);
@@ -621,7 +680,10 @@ public class KindergartenController {
         String userId = request.getParameter("userId");
         if (userId == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        // TODO: Permission check
+        if (!accessService.hasPermission(id, sessionUserId, RoleDTO.Permission.MANAGE_MEMBER))
+            return ResultDTO.error("INVALID_ACCESS");
+        if (!Long.valueOf(id).equals(accessService.getKindergartenOfRole(roleId)))
+            return ResultDTO.error("INVALID_PARAMETER");
 
         try {
             kindergartenService.assignRole(id, userId, roleId);
@@ -649,7 +711,8 @@ public class KindergartenController {
         String userId = request.getParameter("userId");
         if (userId == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        // TODO: Permission check
+        if (!accessService.hasPermission(id, sessionUserId, RoleDTO.Permission.MANAGE_MEMBER))
+            return ResultDTO.error("INVALID_ACCESS");
 
         try {
             kindergartenService.unassignRole(id, userId, roleId);
@@ -674,7 +737,11 @@ public class KindergartenController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: Permission check
+        // Deciding what a role may do is the owner's call alone: letting MANAGE_MEMBER holders
+        // edit permissions would let them grant themselves everything else.
+        Long kindergartenId = accessService.getKindergartenOfRole(id);
+        if (kindergartenId == null) return ResultDTO.error("ROLE_NOT_FOUND");
+        if (!accessService.isOwner(kindergartenId, sessionUserId)) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             RoleDTO.Permission permission = RoleDTO.Permission.valueOf(request.getParameter("permission"));
@@ -704,7 +771,9 @@ public class KindergartenController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: Permission check
+        Long kindergartenId = accessService.getKindergartenOfRole(id);
+        if (kindergartenId == null) return ResultDTO.error("ROLE_NOT_FOUND");
+        if (!accessService.isOwner(kindergartenId, sessionUserId)) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             RoleDTO.Permission permission = RoleDTO.Permission.valueOf(request.getParameter("permission"));
@@ -732,7 +801,7 @@ public class KindergartenController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: Access check
+        if (!accessService.canView(kindergartenId, userId)) return ResultDTO.error("INVALID_ACCESS");
 
         return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getNotices(kindergartenId));
     }
@@ -751,12 +820,11 @@ public class KindergartenController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: Access check
-
         try {
             NoticeDTO rDTO = kindergartenService.getNoticeInfo(id);
 
             if (rDTO == null) return ResultDTO.error("NOTICE_NOT_FOUND");
+            if (!accessService.canView(rDTO.getKindergartenId(), userId)) return ResultDTO.error("INVALID_ACCESS");
 
             return ResultDTO.success("QUERY_COMPLETE", rDTO);
         } catch (NumberFormatException e) {
@@ -779,7 +847,8 @@ public class KindergartenController {
                 return ResultDTO.error("INVALID_PARAMETER");
             }
 
-            // TODO: Access check
+            if (!accessService.hasPermission(kindergartenId, userId, RoleDTO.Permission.MANAGE_NOTICE))
+                return ResultDTO.error("INVALID_ACCESS");
 
             NoticeDTO pDTO = new NoticeDTO();
             pDTO.setKindergartenId(kindergartenId);
@@ -814,7 +883,10 @@ public class KindergartenController {
                 return ResultDTO.error("INVALID_PARAMETER");
             }
 
-            // TODO: Access check
+            // The update is keyed on (kindergartenId, num), so checking the kindergarten the
+            // caller named is enough — they can't reach a notice outside it.
+            if (!accessService.hasPermission(kindergartenId, userId, RoleDTO.Permission.MANAGE_NOTICE))
+                return ResultDTO.error("INVALID_ACCESS");
 
             NoticeDTO pDTO = new NoticeDTO();
             pDTO.setKindergartenId(kindergartenId);
@@ -853,7 +925,10 @@ public class KindergartenController {
                 return ResultDTO.error("INVALID_PARAMETER");
             }
 
-            // TODO: Access check
+            Long kindergartenId = accessService.getKindergartenOfNotice(id);
+            if (kindergartenId == null) return ResultDTO.error("NOTICE_NOT_FOUND");
+            if (!accessService.hasPermission(kindergartenId, userId, RoleDTO.Permission.MANAGE_NOTICE))
+                return ResultDTO.error("INVALID_ACCESS");
 
             try {
                 kindergartenService.deleteNotice(id);
@@ -882,7 +957,7 @@ public class KindergartenController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: Permission check
+        if (!accessService.canView(kindergartenId, sessionUserId)) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getSchedules(kindergartenId));
@@ -905,7 +980,9 @@ public class KindergartenController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: Permission check
+        Long kindergartenId = accessService.getKindergartenOfSchedule(id);
+        if (kindergartenId == null) return ResultDTO.error("SCHEDULE_NOT_FOUND");
+        if (!accessService.canView(kindergartenId, sessionUserId)) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getScheduleInfo(id));
@@ -928,7 +1005,8 @@ public class KindergartenController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
-        // TODO: Access check
+        if (!accessService.hasPermission(kindergartenId, sessionUserId, RoleDTO.Permission.MANAGE_SCHEDULE))
+            return ResultDTO.error("INVALID_ACCESS");
 
         ScheduleDTO pDTO = new ScheduleDTO();
         pDTO.setKindergartenId(kindergartenId);
@@ -943,6 +1021,9 @@ public class KindergartenController {
         } catch (NumberFormatException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         }
+        if (pDTO.getClassId() != null
+                && !Long.valueOf(kindergartenId).equals(accessService.getKindergartenOfClass(pDTO.getClassId())))
+            return ResultDTO.error("INVALID_PARAMETER");
 
         try {
             kindergartenService.createSchedule(pDTO);
@@ -966,6 +1047,11 @@ public class KindergartenController {
             return ResultDTO.error("INVALID_PARAMETER");
         }
 
+        Long kindergartenId = accessService.getKindergartenOfSchedule(id);
+        if (kindergartenId == null) return ResultDTO.error("SCHEDULE_NOT_FOUND");
+        if (!accessService.hasPermission(kindergartenId, sessionUserId, RoleDTO.Permission.MANAGE_SCHEDULE))
+            return ResultDTO.error("INVALID_ACCESS");
+
         ScheduleDTO pDTO = new ScheduleDTO();
         pDTO.setId(id);
         pDTO.setDate(request.getParameter("date"));
@@ -979,6 +1065,9 @@ public class KindergartenController {
         } catch (NumberFormatException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         }
+        if (pDTO.getClassId() != null
+                && !kindergartenId.equals(accessService.getKindergartenOfClass(pDTO.getClassId())))
+            return ResultDTO.error("INVALID_PARAMETER");
 
         try {
             kindergartenService.updateSchedule(pDTO);
@@ -1001,6 +1090,11 @@ public class KindergartenController {
         } catch (NumberFormatException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         }
+
+        Long kindergartenId = accessService.getKindergartenOfSchedule(id);
+        if (kindergartenId == null) return ResultDTO.error("SCHEDULE_NOT_FOUND");
+        if (!accessService.hasPermission(kindergartenId, sessionUserId, RoleDTO.Permission.MANAGE_SCHEDULE))
+            return ResultDTO.error("INVALID_ACCESS");
 
         try {
             kindergartenService.deleteSchedule(id);
