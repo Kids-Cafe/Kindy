@@ -236,7 +236,9 @@ public class KindergartenService implements IKindergartenService {
         log.info("Calling setNickname");
 
         RelationshipDTO pDTO = RelationshipDTO.fromId(id, userId);
-        pDTO.setNickname(nickname);
+        // Clearing the nickname must store NULL, not "": the listings pick the nickname over the
+        // real name, and an empty string would win that choice and leave the member unnamed.
+        pDTO.setNickname(nickname == null || nickname.isBlank() ? null : nickname.trim());
 
         return relationshipMapper.updateNickname(pDTO);
     }

@@ -4,7 +4,7 @@
 <mapper namespace="org.kidscafe.kindy.mapper.ISupplyMapper">
     <sql id="authorName">
         COALESCE(
-            (SELECT R.NICKNAME
+            (SELECT NULLIF(R.NICKNAME, '')
              FROM T_RELATIONSHIP R
              JOIN T_CLASS C ON C.KINDERGARTEN_ID = R.KINDERGARTEN_ID
              WHERE C.ID = S.CLASS_ID AND R.USER_ID = S.AUTHOR),

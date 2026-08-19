@@ -53,14 +53,25 @@
     </select>
 
     <select id="getInfo" resultType="UserDTO">
-        SELECT ID, NAME, EMAIL, ADDRESS, ADDRESS_DETAIL, POSTCODE, ACCOUNT_TYPE, BIRTH_DATE, GENDER, GUARDIAN_NAME, GUARDIAN_PHONE, ONBOARDING_COMPLETED, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
+        SELECT ID, NAME, EMAIL, PHONE, ADDRESS, ADDRESS_DETAIL, POSTCODE, ACCOUNT_TYPE, BIRTH_DATE, GENDER, GUARDIAN_NAME, GUARDIAN_PHONE, ONBOARDING_COMPLETED, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
         FROM T_USER
         WHERE ID = #{id}
     </select>
 
+    <!--
+        My-page edits arrive one section at a time (phone, address), so only the columns the caller
+        actually sent are touched — sending an address must not blank out the phone number.
+        NAME is deliberately absent: the real name is fixed at signup. What a member is *called*
+        is their per-kindergarten nickname (T_RELATIONSHIP.NICKNAME), not this column.
+    -->
     <update id="updateInfo">
         UPDATE T_USER
-        SET ADDRESS = #{address}, ADDRESS_DETAIL = #{addressDetail}, POSTCODE = #{postcode}
+        <set>
+            <if test="phone != null">PHONE = #{phone},</if>
+            <if test="address != null">ADDRESS = #{address},</if>
+            <if test="addressDetail != null">ADDRESS_DETAIL = #{addressDetail},</if>
+            <if test="postcode != null">POSTCODE = #{postcode},</if>
+        </set>
         WHERE ID = #{id}
     </update>
 

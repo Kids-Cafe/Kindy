@@ -230,6 +230,16 @@ public class UserController {
         ));
     }
 
+    /**
+     * Updates the parts of the profile a member may change about themselves.
+     *
+     * My-page edits one section at a time, so every parameter is optional and only the ones sent
+     * are written — posting a phone number must not wipe the stored address. The address still
+     * travels as a set: a road address without its postcode is not a usable address.
+     * <p>
+     * The real name is not editable here on purpose. What a member is called inside a kindergarten
+     * is their nickname, which lives on the relationship — see kindergarten/setNickname.
+     */
     @PostMapping(value = "update")
     public ResultDTO<Void> update(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling update");
@@ -237,11 +247,23 @@ public class UserController {
         String id = (String) session.getAttribute("SESSION_USER_ID");
         if (id == null) return ResultDTO.error("INVALID_ACCESS");
         UserDTO pDTO = UserDTO.fromId(id);
-        pDTO.setAddress(encryptUtil.encAES128CBC(request.getParameter("address")));
-        if (pDTO.getAddress() == null) return ResultDTO.error("MISSING_PARAMETER");
-        pDTO.setAddressDetail(encryptUtil.encAES128CBC(request.getParameter("addressDetail")));
-        pDTO.setPostcode(encryptUtil.encAES128CBC(request.getParameter("postcode")));
-        if (pDTO.getPostcode() == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        String phone = request.getParameter("phone");
+        if (phone != null) pDTO.setPhone(phone);
+
+        String address = request.getParameter("address");
+        String postcode = request.getParameter("postcode");
+        if (address != null || postcode != null) {
+            if (address == null || postcode == null) return ResultDTO.error("MISSING_PARAMETER");
+            pDTO.setAddress(encryptUtil.encAES128CBC(address));
+            pDTO.setPostcode(encryptUtil.encAES128CBC(postcode));
+            if (pDTO.getAddress() == null || pDTO.getPostcode() == null) return ResultDTO.error("MISSING_PARAMETER");
+            // The detail line belongs to the address that just replaced it, so callers should send
+            // it alongside — an empty string clears it. Omitting it leaves the stored one alone.
+            pDTO.setAddressDetail(encryptUtil.encAES128CBC(request.getParameter("addressDetail")));
+        }
+
+        if (pDTO.getPhone() == null && pDTO.getAddress() == null) return ResultDTO.error("MISSING_PARAMETER");
 
         try {
             userService.update(pDTO);

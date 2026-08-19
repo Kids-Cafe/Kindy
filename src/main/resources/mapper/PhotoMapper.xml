@@ -5,7 +5,14 @@
     <sql id="columns">
         P.ID, P.CLASS_ID, P.URL, P.CAPTION, P.THEME, P.AUTHOR,
         UNIX_TIMESTAMP(P.CREATED_AT) * 1000 CREATED_AT,
-        (SELECT U.NAME FROM T_USER U WHERE U.ID = P.AUTHOR) AUTHOR_NAME
+        <!-- The uploader's per-kindergarten nickname wins over their real name, falling back to T_USER. -->
+        COALESCE(
+            (SELECT NULLIF(R.NICKNAME, '')
+             FROM T_RELATIONSHIP R
+             JOIN T_CLASS C ON C.KINDERGARTEN_ID = R.KINDERGARTEN_ID
+             WHERE C.ID = P.CLASS_ID AND R.USER_ID = P.AUTHOR),
+            (SELECT U.NAME FROM T_USER U WHERE U.ID = P.AUTHOR)
+        ) AUTHOR_NAME
     </sql>
 
     <select id="selectList" resultType="PhotoDTO">

@@ -5,7 +5,19 @@
     <sql id="noteColumns">
         N.ID, N.CHILD_ID, N.AUTHOR, N.CONTENT,
         UNIX_TIMESTAMP(N.CREATED_AT) * 1000 CREATED_AT,
-        (SELECT U.NAME FROM T_USER U WHERE U.ID = N.AUTHOR) AUTHOR_NAME
+        <!--
+            A note is about one child, so the kindergarten it belongs to is the child's. The author
+            is named the way that kindergarten knows them, falling back to their real name.
+        -->
+        COALESCE(
+            (SELECT NULLIF(R.NICKNAME, '')
+             FROM T_RELATIONSHIP R
+             WHERE R.USER_ID = N.AUTHOR
+               AND R.KINDERGARTEN_ID IN
+                   (SELECT CR.KINDERGARTEN_ID FROM T_RELATIONSHIP CR WHERE CR.USER_ID = N.CHILD_ID)
+             LIMIT 1),
+            (SELECT U.NAME FROM T_USER U WHERE U.ID = N.AUTHOR)
+        ) AUTHOR_NAME
     </sql>
 
     <select id="selectList" resultType="ParentNoteDTO">
@@ -34,7 +46,19 @@
     <sql id="commentColumns">
         C.ID, C.NOTE_ID, C.AUTHOR, C.CONTENT,
         UNIX_TIMESTAMP(C.CREATED_AT) * 1000 CREATED_AT,
-        (SELECT U.NAME FROM T_USER U WHERE U.ID = C.AUTHOR) AUTHOR_NAME
+        <!-- Same rule as the note itself: the kindergarten is the one the note's child belongs to. -->
+        COALESCE(
+            (SELECT NULLIF(R.NICKNAME, '')
+             FROM T_RELATIONSHIP R
+             WHERE R.USER_ID = C.AUTHOR
+               AND R.KINDERGARTEN_ID IN
+                   (SELECT CR.KINDERGARTEN_ID
+                    FROM T_RELATIONSHIP CR
+                    JOIN T_PARENT_NOTE N ON N.CHILD_ID = CR.USER_ID
+                    WHERE N.ID = C.NOTE_ID)
+             LIMIT 1),
+            (SELECT U.NAME FROM T_USER U WHERE U.ID = C.AUTHOR)
+        ) AUTHOR_NAME
     </sql>
 
     <select id="selectCommentList" resultType="org.kidscafe.kindy.dto.ParentNoteDTO$CommentDTO">

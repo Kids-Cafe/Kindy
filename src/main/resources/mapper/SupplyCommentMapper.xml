@@ -5,7 +5,15 @@
     <sql id="columns">
         C.ID, C.SUPPLY_ID, C.AUTHOR, C.CONTENT,
         UNIX_TIMESTAMP(C.CREATED_AT) * 1000 CREATED_AT,
-        (SELECT U.NAME FROM T_USER U WHERE U.ID = C.AUTHOR) AUTHOR_NAME
+        <!-- The commenter's per-kindergarten nickname wins over their real name, falling back to T_USER. -->
+        COALESCE(
+            (SELECT NULLIF(R.NICKNAME, '')
+             FROM T_RELATIONSHIP R
+             JOIN T_CLASS CL ON CL.KINDERGARTEN_ID = R.KINDERGARTEN_ID
+             JOIN T_SUPPLY S ON S.CLASS_ID = CL.ID
+             WHERE S.ID = C.SUPPLY_ID AND R.USER_ID = C.AUTHOR COLLATE utf8mb4_general_ci),
+            (SELECT U.NAME FROM T_USER U WHERE U.ID = C.AUTHOR COLLATE utf8mb4_general_ci)
+        ) AUTHOR_NAME
     </sql>
 
     <select id="selectList" resultType="org.kidscafe.kindy.dto.SupplyDTO$CommentDTO">
@@ -19,6 +27,7 @@
         SELECT <include refid="columns"/>
         FROM T_SUPPLY_COMMENT C
         WHERE C.ID = #{id}
+        COLLATE utf8mb4_general_ci
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">

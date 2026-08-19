@@ -5,7 +5,7 @@
     <!-- The author's per-kindergarten nickname wins over their real name, falling back to T_USER. -->
     <sql id="authorName">
         COALESCE(
-            (SELECT R.NICKNAME FROM T_RELATIONSHIP R WHERE R.KINDERGARTEN_ID = N.KINDERGARTEN_ID AND R.USER_ID = N.AUTHOR),
+            (SELECT NULLIF(R.NICKNAME, '') FROM T_RELATIONSHIP R WHERE R.KINDERGARTEN_ID = N.KINDERGARTEN_ID AND R.USER_ID = N.AUTHOR),
             (SELECT U.NAME FROM T_USER U WHERE U.ID = N.AUTHOR)
         ) AUTHOR_NAME
     </sql>
