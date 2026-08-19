@@ -115,8 +115,6 @@ public class UserController {
         byte[] salt = encryptUtil.getSecureSalt();
         pDTO.setPassword(encryptUtil.encHashSHA256(password, salt));
         pDTO.setPasswordSalt(salt);
-        pDTO.setEmail(request.getParameter("email"));
-        if (!pDTO.getEmail().equals(session.getAttribute("SESSION_VERIFIED_EMAIL"))) return ResultDTO.error("EMAIL_NOT_VERIFIED");
         pDTO.setPhone(request.getParameter("phone"));
 
         String accountType = request.getParameter("accountType");
@@ -125,6 +123,16 @@ public class UserController {
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         }
+
+        // A child signs up without an email of their own, so there is nothing to verify and the
+        // column stays NULL. Adults must have verified the address earlier in this same session.
+        if (pDTO.getAccountType() != UserDTO.AccountType.CHILD) {
+            String email = request.getParameter("email");
+            if (email == null) return ResultDTO.error("MISSING_PARAMETER");
+            if (!email.equals(session.getAttribute("SESSION_VERIFIED_EMAIL"))) return ResultDTO.error("EMAIL_NOT_VERIFIED");
+            pDTO.setEmail(email);
+        }
+
         pDTO.setBirthDate(request.getParameter("birthDate"));
         String gender = request.getParameter("gender");
         try {

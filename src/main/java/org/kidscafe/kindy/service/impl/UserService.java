@@ -88,11 +88,12 @@ public class UserService implements IUserService {
         if (pDTO.getId().length() < 4 || pDTO.getId().length() > 20) throw new IllegalArgumentException();
         if (pDTO.getName() == null) throw new NullPointerException();
         if (pDTO.getPassword() == null) throw new NullPointerException();
-        if (pDTO.getEmail() == null) throw new NullPointerException();
         if (pDTO.getPhone() == null) throw new NullPointerException();
         if (pDTO.getAccountType() == UserDTO.AccountType.CHILD) {
             if (pDTO.getBirthDate() == null) throw new NullPointerException();
         } else {
+            // Only an adult owns an email address; a child's stays NULL.
+            if (pDTO.getEmail() == null) throw new NullPointerException();
             if (pDTO.getAddress() == null) throw new NullPointerException();
             if (pDTO.getAddressDetail() == null) throw new NullPointerException();
             if (pDTO.getPostcode() == null) throw new NullPointerException();
