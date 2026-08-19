@@ -47,6 +47,7 @@ public class UserDTO {
 
     @Getter
     @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class PlainUserDTO {
         private String id;
         private String name;

@@ -102,7 +102,7 @@
         SELECT ID, NAME, ACCOUNT_TYPE
         FROM T_USER
         WHERE ID LIKE CONCAT('%', #{q}, '%')
-           OR NAME LIKE CONCAT('%', #{q}, '%')
+        -- OR NAME LIKE CONCAT('%', #{q}, '%')
         ORDER BY ID
         LIMIT 20
     </select>

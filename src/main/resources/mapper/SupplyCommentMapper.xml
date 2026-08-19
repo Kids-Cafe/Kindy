@@ -11,8 +11,8 @@
              FROM T_RELATIONSHIP R
              JOIN T_CLASS CL ON CL.KINDERGARTEN_ID = R.KINDERGARTEN_ID
              JOIN T_SUPPLY S ON S.CLASS_ID = CL.ID
-             WHERE S.ID = C.SUPPLY_ID AND R.USER_ID = C.AUTHOR COLLATE utf8mb4_general_ci),
-            (SELECT U.NAME FROM T_USER U WHERE U.ID = C.AUTHOR COLLATE utf8mb4_general_ci)
+             WHERE S.ID = C.SUPPLY_ID AND R.USER_ID = C.AUTHOR),
+            (SELECT U.NAME FROM T_USER U WHERE U.ID = C.AUTHOR)
         ) AUTHOR_NAME
     </sql>
 
