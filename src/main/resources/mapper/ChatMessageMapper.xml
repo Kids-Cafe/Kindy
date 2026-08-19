@@ -3,7 +3,7 @@
 
 <mapper namespace="org.kidscafe.kindy.mapper.IChatMessageMapper">
     <select id="selectList" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
-        SELECT CHAT_ID, NUM, TYPE, CONTENT, ROLE, CREATED_AT
+        SELECT CHAT_ID, NUM, TYPE, CONTENT, ROLE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
         FROM T_CHAT_MESSAGE
         WHERE CHAT_ID = #{chatId}
         <if test="minNum != null">
@@ -21,7 +21,7 @@
     </select>
 
     <select id="select" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
-        SELECT CHAT_ID, NUM, TYPE, CONTENT, ROLE, CREATED_AT
+        SELECT CHAT_ID, NUM, TYPE, CONTENT, ROLE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
         FROM T_CHAT_MESSAGE
         WHERE CHAT_ID = #{chatId} AND NUM = #{num}
     </select>

@@ -3,19 +3,19 @@
 
 <mapper namespace="org.kidscafe.kindy.mapper.IChatMapper">
     <select id="selectList" resultType="ChatDTO">
-        SELECT ID, KINDERGARTEN_ID, CLIENT, HOST, CREATED_AT
+        SELECT ID, KINDERGARTEN_ID, CLIENT, HOST, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
         FROM T_CHAT
         WHERE KINDERGARTEN_ID = #{kindergartenId}
     </select>
 
     <select id="selectListByUser" resultType="ChatDTO">
-        SELECT ID, KINDERGARTEN_ID, CLIENT, HOST, CREATED_AT
+        SELECT ID, KINDERGARTEN_ID, CLIENT, HOST, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
         FROM T_CHAT
         WHERE CLIENT = #{client} OR HOST = #{host}
     </select>
 
     <select id="select" resultType="ChatDTO">
-        SELECT ID, KINDERGARTEN_ID, CLIENT, HOST, CREATED_AT
+        SELECT ID, KINDERGARTEN_ID, CLIENT, HOST, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
         FROM T_CHAT
         WHERE ID = #{id}
     </select>

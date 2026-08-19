@@ -3,13 +3,13 @@
 
 <mapper namespace="org.kidscafe.kindy.mapper.IFamilyMapper">
     <select id="selectList" resultType="FamilyDTO">
-        SELECT PARENT, CHILD, CREATED_AT
+        SELECT PARENT, CHILD, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
         FROM T_FAMILY
         WHERE PARENT = #{parent} OR CHILD = #{child}
     </select>
 
     <select id="select" resultType="FamilyDTO">
-        SELECT PARENT, CHILD, CREATED_AT
+        SELECT PARENT, CHILD, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
         FROM T_FAMILY
         WHERE PARENT = #{parent} AND CHILD = #{child}
     </select>
