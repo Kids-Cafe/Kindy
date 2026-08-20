@@ -31,6 +31,13 @@ public interface IUserService {
     int updateDiary(DiaryDTO pDTO) throws Exception;
     int deleteDiary(String id, String date) throws Exception;
     List<FamilyDTO> getFamilies(String id) throws Exception;
+    /**
+     * Every guardian of one child, as a profile rather than a bare id. A child may have more than
+     * one — {@code T_FAMILY} has always been many-to-many — and {@link #getFamilies} only ever
+     * answers for the caller's own rows, so a teacher looking at a pupil had no way to learn who
+     * that pupil's guardians are.
+     */
+    List<UserDTO.PlainUserDTO> getGuardians(String childId) throws Exception;
     int addFamily(String parent, String child) throws Exception;
     int removeFamily(String parent, String child) throws Exception;
 

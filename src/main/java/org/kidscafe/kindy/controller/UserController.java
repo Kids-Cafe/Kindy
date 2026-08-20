@@ -949,6 +949,34 @@ public class UserController {
     }
 
     /**
+     * The guardians of one child. family/list only ever answers for the caller's own rows, which
+     * left every teacher-facing screen with no way to name a pupil's parents — they showed
+     * "undefined", and where they did have a name it was whichever single row happened to win.
+     * <p>
+     * Gated by {@link IAccessService#canViewChild}, the same rule that already lets a teacher read
+     * the child's profile, notes and diary.
+     */
+    @GetMapping(value = "family/parents")
+    public ResultDTO<List<UserDTO.PlainUserDTO>> familyParents(HttpServletRequest request, HttpSession session) {
+        log.info("Calling familyParents");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        String childId = request.getParameter("childId");
+        if (childId == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        if (!accessService.canViewChild(userId, childId)) return ResultDTO.error("INVALID_ACCESS");
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", userService.getGuardians(childId));
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    /**
      * Retired. This used to create the T_FAMILY row on one side's say-so: the only check was that
      * the caller was either the parent or the child, so anyone could name an arbitrary account as
      * their child and, because being a parent is what {@link IAccessService#canManageChild} keys

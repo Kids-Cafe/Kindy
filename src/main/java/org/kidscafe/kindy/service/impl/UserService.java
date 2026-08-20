@@ -417,6 +417,29 @@ public class UserService implements IUserService {
         return familyMapper.selectList(pDTO);
     }
 
+    /**
+     * The guardians of one child, with the name and phone number needed to actually reach them.
+     * Nothing else is copied over: the caller here is a teacher looking at a pupil, not the
+     * guardian looking at their own account, so the address and login details stay out of it.
+     */
+    @Override
+    public List<UserDTO.PlainUserDTO> getGuardians(String childId) throws Exception {
+        log.info("Calling getGuardians");
+
+        FamilyDTO query = new FamilyDTO();
+        query.setChild(childId);
+
+        List<UserDTO.PlainUserDTO> result = new java.util.ArrayList<>();
+        for (FamilyDTO row : familyMapper.selectParents(query)) {
+            UserDTO parent = userMapper.getInfo(UserDTO.fromId(row.getParent()));
+            // A row whose account has since been deleted is skipped rather than shown as a blank.
+            if (parent == null) continue;
+            result.add(new UserDTO.PlainUserDTO(parent.getId(), parent.getName(), null, parent.getPhone(),
+                    null, null, null, parent.getAccountType(), null, null, null, null, null, null, null));
+        }
+        return result;
+    }
+
     @Transactional
     @Override
     public int addFamily(String parent, String child) throws Exception {
