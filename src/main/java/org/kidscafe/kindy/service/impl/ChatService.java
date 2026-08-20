@@ -8,12 +8,14 @@ import org.kidscafe.kindy.mapper.IChatMessageMapper;
 import org.kidscafe.kindy.service.IChatService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -72,10 +74,46 @@ class ChatService implements IChatService {
     }
 
     @Override
+    public ChatDTO getInfo(long kindergartenId, String host, String client) throws Exception {
+        log.info("Calling getInfo for {} between {} and {}", kindergartenId, host, client);
+
+        ChatDTO pDTO = new ChatDTO();
+        pDTO.setKindergartenId(kindergartenId);
+        pDTO.setHost(host);
+        pDTO.setClient(client);
+
+        return chatMapper.selectByParticipants(pDTO);
+    }
+
+    @Override
     public int create(ChatDTO pDTO) throws Exception {
         log.info("Calling create");
 
         return chatMapper.insert(pDTO);
+    }
+
+    @Override
+    public ChatDTO ensure(long kindergartenId, String host, String client) throws Exception {
+        log.info("Calling ensure");
+
+        ChatDTO existing = this.getInfo(kindergartenId, host, client);
+        if (existing != null) return existing;
+
+        ChatDTO pDTO = new ChatDTO();
+        pDTO.setKindergartenId(kindergartenId);
+        pDTO.setHost(host);
+        pDTO.setClient(client);
+
+        try {
+            this.create(pDTO);
+            return pDTO;
+        } catch (DuplicateKeyException e) {
+            // Someone opened the same conversation between our SELECT and our INSERT. The unique
+            // key on (KINDERGARTEN_ID, HOST, CLIENT) is what makes that a caught error rather than
+            // a second thread, so re-read and hand back the row that won.
+            log.info("ensure lost a race, reusing the existing chat");
+            return this.getInfo(kindergartenId, host, client);
+        }
     }
 
     @Override
@@ -144,6 +182,21 @@ class ChatService implements IChatService {
     }
 
     @Override
+    public ChatDTO.MessageDTO appendMessageAndRead(ChatDTO.MessageDTO pDTO) throws Exception {
+        log.info("Calling appendMessageAndRead");
+
+        this.appendMessage(pDTO);
+
+        // insertNext assigns NUM inside the INSERT, so the only way to learn it — and CREATED_AT —
+        // is to read the row back. Without them the client cannot key or order the message and
+        // has to re-fetch the whole conversation just to place one reply.
+        ChatDTO.MessageDTO stored = chatMessageMapper.selectLast(
+                new ChatDTO.QueryDTO(pDTO.getChatId(), null, null, null, null, null));
+
+        return stored != null ? stored : pDTO;
+    }
+
+    @Override
     public String transcribe(Resource resource) throws Exception {
         log.info("Calling transcribe");
 
@@ -157,33 +210,56 @@ class ChatService implements IChatService {
         return restClient.post().uri(STT_URL).body(parts).retrieve().body(String.class);
     }
 
+    /**
+     * How many past turns we replay to the model.
+     *
+     * The conversation is kept forever, so "all of it" grows without bound: cost and latency climb
+     * with every turn a child takes and eventually the request exceeds the context window and stops
+     * working altogether. A window keeps the cost of a turn flat.
+     */
+    private static final int LLM_HISTORY_TURNS = 30;
+
+    @Override
+    public List<ChatDTO.MessageDTO> getRecentMessages(long id, int limit) throws Exception {
+        log.info("Calling getRecentMessages");
+
+        return chatMessageMapper.selectRecent(new ChatDTO.QueryDTO(id, null, null, null, null, limit));
+    }
+
     @Override
     public ChatDTO.MessageDTO requestMessage(long chatId) throws Exception {
         log.info("Calling requestMessage");
 
-        ChatDTO.MessageDTO sDTO = new ChatDTO.MessageDTO();
-        sDTO.setChatId(chatId);
-        sDTO.setContent(LLM_PROMPT);
-        sDTO.setType(ChatDTO.MessageDTO.Type.TEXT);
-        sDTO.setRole(ChatDTO.MessageDTO.Role.system);
-
-        List<ChatDTO.MessageDTO> messages = this.getMessages(chatId);
-        messages.add(0, sDTO);
+        List<ChatDTO.LLMMessageDTO> messages = new ArrayList<>();
+        messages.add(new ChatDTO.LLMMessageDTO(ChatDTO.MessageDTO.Role.system.name(), LLM_PROMPT));
+        for (ChatDTO.MessageDTO m : this.getRecentMessages(chatId, LLM_HISTORY_TURNS)) {
+            // Data cards (FOOD, HEALTH, …) are rendered records, not things anyone said.
+            if (m.getType() != ChatDTO.MessageDTO.Type.TEXT) continue;
+            if (m.getContent() == null || m.getContent().isBlank()) continue;
+            messages.add(ChatDTO.LLMMessageDTO.of(m));
+        }
 
         ChatDTO.LLMQueryDTO qDTO = new ChatDTO.LLMQueryDTO(LLM_MODEL, messages);
 
-        ChatDTO.MessageDTO result = restClient.post().uri(LLM_URL).body(qDTO).retrieve().body(ChatDTO.MessageDTO.class);
-        if (result == null) return null;
+        ChatDTO.LLMResponseDTO result = restClient.post().uri(LLM_URL)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(qDTO).retrieve().body(ChatDTO.LLMResponseDTO.class);
+
+        String content = result == null ? null : result.firstContent();
+        // An empty answer must not become an empty bubble: CONTENT is NOT NULL, and a blank
+        // assistant turn would also poison the next request's history.
+        if (content == null || content.isBlank()) {
+            log.info("LLM returned no usable content: {}", result);
+            return null;
+        }
 
         ChatDTO.MessageDTO mDTO = new ChatDTO.MessageDTO();
         mDTO.setChatId(chatId);
-        mDTO.setContent(result.getContent());
+        mDTO.setContent(content.trim());
         mDTO.setType(ChatDTO.MessageDTO.Type.TEXT);
         mDTO.setRole(ChatDTO.MessageDTO.Role.assistant);
 
-        this.appendMessage(mDTO);
-
-        return mDTO;
+        return this.appendMessageAndRead(mDTO);
     }
 
     @Override

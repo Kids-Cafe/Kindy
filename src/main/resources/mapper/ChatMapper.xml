@@ -20,6 +20,18 @@
         WHERE ID = #{id}
     </select>
 
+    <!-- A conversation is symmetric: (host, client) and (client, host) are the same thread.
+         Used by create() so a second caller joins the existing chat instead of opening a
+         duplicate one that splits the history in two. -->
+    <select id="selectByParticipants" resultType="ChatDTO">
+        SELECT ID, KINDERGARTEN_ID, CLIENT, HOST, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
+        FROM T_CHAT
+        WHERE KINDERGARTEN_ID = #{kindergartenId}
+          AND ((HOST = #{host} AND CLIENT = #{client}) OR (HOST = #{client} AND CLIENT = #{host}))
+        ORDER BY ID
+        LIMIT 1
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO T_CHAT(KINDERGARTEN_ID, CLIENT, HOST)
         VALUES (#{kindergartenId}, #{client}, #{host})

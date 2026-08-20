@@ -66,7 +66,10 @@ public class ChatController {
         }
     }
 
-    // Returns the created chat (with its generated id) so the caller can start sending immediately.
+    // Returns the chat (with its id) so the caller can start sending immediately. If the pair
+    // already has a conversation, that one comes back — opening a second thread for the same two
+    // people would split the history, and whichever row a later lookup happened to pick would
+    // silently hide the rest of it.
     @PostMapping(value = "create")
     public ResultDTO<ChatDTO> create(HttpSession session,
                                      @RequestParam long kindergartenId,
@@ -88,14 +91,8 @@ public class ChatController {
         String other = userId.equals(host) ? client : host;
         if (!accessService.canView(kindergartenId, other)) return ResultDTO.error("INVALID_PARAMETER");
 
-        ChatDTO pDTO = new ChatDTO();
-        pDTO.setKindergartenId(kindergartenId);
-        pDTO.setHost(host);
-        pDTO.setClient(client);
-
         try {
-            chatService.create(pDTO);
-            return ResultDTO.success("CREATE_COMPLETE", pDTO);
+            return ResultDTO.success("CREATE_COMPLETE", chatService.ensure(kindergartenId, host, client));
         } catch (Exception e) {
             log.info(e.toString());
             return ResultDTO.error("UNKNOWN_ERROR");
@@ -103,16 +100,21 @@ public class ChatController {
     }
 
     // NUM is assigned by the database, so two senders racing on the same chat can't collide.
+    //
+    // ROLE is deliberately not a parameter. Everything a person sends is a `user` turn; `assistant`
+    // turns are written only by `request`, from what the model actually returned. Letting a caller
+    // name its own role would let a child put words in the AI's mouth — and worse, those words
+    // would come back as context on the next turn, steering the model with text it never produced.
     @PostMapping(value = "send")
-    public ResultDTO<Void> send(HttpSession session,
+    public ResultDTO<ChatDTO.MessageDTO> send(HttpSession session,
                                 @RequestParam long chatId,
                                 @RequestParam String content,
-                                @RequestParam(required = false) String type,
-                                @RequestParam(required = false) String role) {
+                                @RequestParam(required = false) String type) {
         log.info("Calling send");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+        if (content == null || content.isBlank()) return ResultDTO.error("INVALID_PARAMETER");
 
         try {
             ChatDTO chat = chatService.getInfo(chatId);
@@ -123,10 +125,9 @@ public class ChatController {
             pDTO.setChatId(chatId);
             pDTO.setContent(content);
             pDTO.setType(type == null ? ChatDTO.MessageDTO.Type.TEXT : ChatDTO.MessageDTO.Type.valueOf(type));
-            pDTO.setRole(role == null ? ChatDTO.MessageDTO.Role.user : ChatDTO.MessageDTO.Role.valueOf(role));
+            pDTO.setRole(ChatDTO.MessageDTO.Role.user);
 
-            chatService.appendMessage(pDTO);
-            return ResultDTO.success("SEND_COMPLETE");
+            return ResultDTO.success("SEND_COMPLETE", chatService.appendMessageAndRead(pDTO));
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
@@ -135,17 +136,31 @@ public class ChatController {
         }
     }
 
+    // Everything past this point leans on an external service that can be slow, down, or fussy
+    // about its input. Those failures are ordinary here, so they are answered with a ResultDTO like
+    // any other error — an uncaught exception would leave Spring to render an HTML 500 page, which
+    // a client parsing the {status, code, data} envelope can only report as a parse error.
     @PostMapping(value = "transcribe")
-    public ResultDTO<String> transcribe(HttpSession session, @RequestParam(value = "file") MultipartFile file) throws Exception {
+    // `required = false` so a call with no file is answered with INVALID_PARAMETER below, rather
+    // than by Spring's own error page — which is not a ResultDTO and so reaches the client as an
+    // unparseable response instead of an error it can name.
+    public ResultDTO<String> transcribe(HttpSession session,
+                                        @RequestParam(value = "file", required = false) MultipartFile file) {
         log.info("Calling transcribe");
 
         // Not tied to a chat, but it bills an external API, so it isn't open to anonymous callers.
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+        if (file == null || file.isEmpty()) return ResultDTO.error("INVALID_PARAMETER");
 
-        String result = chatService.transcribe(file.getResource());
-        log.info(result);
-        return ResultDTO.success("TRANSCRIPTION_COMPLETE", result);
+        try {
+            String result = chatService.transcribe(file.getResource());
+            log.info(result);
+            return ResultDTO.success("TRANSCRIPTION_COMPLETE", result == null ? "" : result.trim());
+        } catch (Exception e) {
+            log.info(e.toString());
+            return ResultDTO.error("TRANSCRIPTION_FAILED");
+        }
     }
 
     @PostMapping(value = "request")
@@ -161,36 +176,112 @@ public class ChatController {
             if (chat == null) return ResultDTO.error("NOT_FOUND");
             if (!isParticipant(chat, userId)) return ResultDTO.error("INVALID_ACCESS");
 
-            return ResultDTO.success("SEND_COMPLETE", chatService.requestMessage(chatId));
+            ChatDTO.MessageDTO reply = chatService.requestMessage(chatId);
+            if (reply == null) return ResultDTO.error("GENERATION_FAILED");
+
+            return ResultDTO.success("SEND_COMPLETE", reply);
+        } catch (IllegalArgumentException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        } catch (Exception e) {
+            log.info(e.toString());
+            return ResultDTO.error("GENERATION_FAILED");
+        }
+    }
+
+    /**
+     * `send` and `request` in one call — the whole of a turn against an AI partner.
+     *
+     * Both messages are returned so the caller can render the exchange without re-reading the
+     * conversation. If the model fails after the child's message is stored, that message stays
+     * stored and `reply` is null: the child said it, and losing it to retry the model would be
+     * worse than answering late.
+     */
+    @PostMapping(value = "say")
+    public ResultDTO<ChatDTO.TurnDTO> say(HttpSession session,
+                                          @RequestParam long chatId,
+                                          @RequestParam String content,
+                                          @RequestParam(required = false) String type) {
+        log.info("Calling say");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+        if (content == null || content.isBlank()) return ResultDTO.error("INVALID_PARAMETER");
+
+        ChatDTO.MessageDTO sent;
+        try {
+            ChatDTO chat = chatService.getInfo(chatId);
+            if (chat == null) return ResultDTO.error("NOT_FOUND");
+            if (!isParticipant(chat, userId)) return ResultDTO.error("INVALID_ACCESS");
+
+            ChatDTO.MessageDTO pDTO = new ChatDTO.MessageDTO();
+            pDTO.setChatId(chatId);
+            pDTO.setContent(content);
+            pDTO.setType(type == null ? ChatDTO.MessageDTO.Type.TEXT : ChatDTO.MessageDTO.Type.valueOf(type));
+            pDTO.setRole(ChatDTO.MessageDTO.Role.user);
+
+            sent = chatService.appendMessageAndRead(pDTO);
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
             log.info(e.toString());
             return ResultDTO.error("UNKNOWN_ERROR");
         }
+
+        try {
+            ChatDTO.MessageDTO reply = chatService.requestMessage(chatId);
+            if (reply == null) return ResultDTO.error("GENERATION_FAILED", new ChatDTO.TurnDTO(sent, null));
+
+            return ResultDTO.success("SEND_COMPLETE", new ChatDTO.TurnDTO(sent, reply));
+        } catch (Exception e) {
+            log.info(e.toString());
+            return ResultDTO.error("GENERATION_FAILED", new ChatDTO.TurnDTO(sent, null));
+        }
     }
 
+    // These two answer with audio, not the ResultDTO envelope, so failures are plain status codes:
+    // 401 when the session is gone (the client tells that apart from a forbidden resource and
+    // re-authenticates), 502 when the speech service upstream is the one that failed.
     @PostMapping(value = "synthesize", produces = "audio/wav")
-    public ResponseEntity<Resource> synthesize(HttpSession session, @RequestParam(value = "text") String text) throws Exception {
+    public ResponseEntity<Resource> synthesize(HttpSession session, @RequestParam(value = "text") String text) {
         log.info("Calling synthesize");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
-        if (userId == null) return ResponseEntity.status(HttpStatus.FORBIDDEN).body(null);
+        if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (text == null || text.isBlank()) return ResponseEntity.badRequest().build();
 
-        Resource audioStream = chatService.synthesize(text);
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav")).body(audioStream);
+        try {
+            Resource audioStream = chatService.synthesize(text);
+            return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav")).body(audioStream);
+        } catch (Exception e) {
+            log.info(e.toString());
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
+        }
     }
 
     @PostMapping(value = "speak", produces = "audio/wav")
-    public ResponseEntity<Resource> speak(HttpSession session, @RequestParam(value = "text") String text) throws Exception {
+    public ResponseEntity<Resource> speak(HttpSession session, @RequestParam(value = "text") String text) {
         log.info("Calling speak");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
-        if (userId == null) return ResponseEntity.status(HttpStatus.FORBIDDEN).body(null);
+        if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (text == null || text.isBlank()) return ResponseEntity.badRequest().build();
 
-        Resource audioStream = chatService.synthesize(text);
-        Resource convertedAudioStream = chatService.convert(audioStream);
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav")).body(convertedAudioStream);
+        try {
+            Resource audioStream = chatService.synthesize(text);
+            Resource convertedAudioStream = chatService.convert(audioStream);
+            return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav")).body(convertedAudioStream);
+        } catch (Exception e) {
+            // Voice conversion is the fragile half. Losing the character voice is a smaller loss
+            // than losing the voice, so fall back to plain synthesis before giving up.
+            log.info(e.toString());
+            try {
+                return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav"))
+                        .body(chatService.synthesize(text));
+            } catch (Exception fallback) {
+                log.info(fallback.toString());
+                return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
+            }
+        }
     }
 
     @GetMapping(value = "messages")

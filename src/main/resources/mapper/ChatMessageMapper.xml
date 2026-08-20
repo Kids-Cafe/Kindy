@@ -12,12 +12,42 @@
         <if test="maxNum != null">
             AND NUM &#x3C;= #{maxNum}
         </if>
+        <!-- The DTO carries epoch milliseconds; CREATED_AT is a TIMESTAMP. Comparing them
+             directly made both bounds match nothing. -->
         <if test="minTimestamp != null">
-            AND CREATED_AT &#x3E;= #{minTimestamp}
+            AND CREATED_AT &#x3E;= FROM_UNIXTIME(#{minTimestamp} / 1000)
         </if>
         <if test="maxTimestamp != null">
-            AND CREATED_AT &#x3C;= #{maxTimestamp}
+            AND CREATED_AT &#x3C;= FROM_UNIXTIME(#{maxTimestamp} / 1000)
         </if>
+        <!-- Conversation order is the point of this table, and the PK order is not promised. -->
+        ORDER BY NUM
+        <if test="maxAmount != null">
+            LIMIT #{maxAmount}
+        </if>
+    </select>
+
+    <!-- The last N turns, oldest-first. Used to bound what we replay to the LLM: the whole
+         history grows without limit, and every turn would re-send all of it. -->
+    <select id="selectRecent" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
+        SELECT * FROM (
+            SELECT CHAT_ID, NUM, TYPE, CONTENT, ROLE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
+            FROM T_CHAT_MESSAGE
+            WHERE CHAT_ID = #{id}
+            ORDER BY NUM DESC
+            LIMIT #{maxAmount}
+        ) RECENT
+        ORDER BY NUM
+    </select>
+
+    <!-- The row insertNext just wrote. NUM is assigned inside the INSERT, so this is the only
+         way to learn it. -->
+    <select id="selectLast" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
+        SELECT CHAT_ID, NUM, TYPE, CONTENT, ROLE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
+        FROM T_CHAT_MESSAGE
+        WHERE CHAT_ID = #{id}
+        ORDER BY NUM DESC
+        LIMIT 1
     </select>
 
     <select id="select" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
