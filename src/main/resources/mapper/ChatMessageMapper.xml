@@ -5,7 +5,7 @@
     <select id="selectList" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
         SELECT CHAT_ID, NUM, TYPE, CONTENT, ROLE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
         FROM T_CHAT_MESSAGE
-        WHERE CHAT_ID = #{chatId}
+        WHERE CHAT_ID = #{id}
         <if test="minNum != null">
             AND NUM &#x3E;= #{minNum}
         </if>

@@ -21,6 +21,7 @@ public interface IChatService {
     /** Appends with a NUM assigned by the database instead of by the caller. */
     int appendMessage(ChatDTO.MessageDTO pDTO) throws Exception;
     String transcribe(Resource resource) throws Exception;
+    ChatDTO.MessageDTO requestMessage(long chatId) throws Exception;
     Resource synthesize(String text) throws Exception;
     Resource convert(Resource resource) throws Exception;
 }

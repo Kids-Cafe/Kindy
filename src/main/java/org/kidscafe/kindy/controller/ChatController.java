@@ -7,6 +7,10 @@ import org.kidscafe.kindy.dto.ChatDTO;
 import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.service.IAccessService;
 import org.kidscafe.kindy.service.IChatService;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -131,17 +135,62 @@ public class ChatController {
         }
     }
 
-    @PostMapping(value = "transcribe", produces = "text/plain")
-    public String transcribe(HttpSession session, @RequestParam(value = "file") MultipartFile file) throws Exception {
+    @PostMapping(value = "transcribe")
+    public ResultDTO<String> transcribe(HttpSession session, @RequestParam(value = "file") MultipartFile file) throws Exception {
         log.info("Calling transcribe");
 
         // Not tied to a chat, but it bills an external API, so it isn't open to anonymous callers.
         String userId = (String) session.getAttribute("SESSION_USER_ID");
-        if (userId == null) return "";
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
 
         String result = chatService.transcribe(file.getResource());
         log.info(result);
-        return result;
+        return ResultDTO.success("TRANSCRIPTION_COMPLETE", result);
+    }
+
+    @PostMapping(value = "request")
+    public ResultDTO<ChatDTO.MessageDTO> request(HttpSession session,
+            @RequestParam long chatId) {
+        log.info("Calling request");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        try {
+            ChatDTO chat = chatService.getInfo(chatId);
+            if (chat == null) return ResultDTO.error("NOT_FOUND");
+            if (!isParticipant(chat, userId)) return ResultDTO.error("INVALID_ACCESS");
+
+            return ResultDTO.success("SEND_COMPLETE", chatService.requestMessage(chatId));
+        } catch (IllegalArgumentException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        } catch (Exception e) {
+            log.info(e.toString());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    @PostMapping(value = "synthesize", produces = "audio/wav")
+    public ResponseEntity<Resource> synthesize(HttpSession session, @RequestParam(value = "text") String text) throws Exception {
+        log.info("Calling synthesize");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResponseEntity.status(HttpStatus.FORBIDDEN).body(null);
+
+        Resource audioStream = chatService.synthesize(text);
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav")).body(audioStream);
+    }
+
+    @PostMapping(value = "speak", produces = "audio/wav")
+    public ResponseEntity<Resource> speak(HttpSession session, @RequestParam(value = "text") String text) throws Exception {
+        log.info("Calling speak");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResponseEntity.status(HttpStatus.FORBIDDEN).body(null);
+
+        Resource audioStream = chatService.synthesize(text);
+        Resource convertedAudioStream = chatService.convert(audioStream);
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav")).body(convertedAudioStream);
     }
 
     @GetMapping(value = "messages")

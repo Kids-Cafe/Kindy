@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import java.util.List;
+
 @Getter
 @Setter
 @ToString
@@ -58,5 +60,17 @@ public class ChatDTO {
         private String content;
         private Role role;
         private Long createdAt;
+    }
+
+    @Getter
+    @ToString
+    @AllArgsConstructor
+    public static class LLMQueryDTO {
+        private String model;
+        private List<MessageDTO> messages;
+        private boolean stream;
+        public LLMQueryDTO(String model, List<MessageDTO> messages) {
+            this(model, messages, false);
+        }
     }
 }
