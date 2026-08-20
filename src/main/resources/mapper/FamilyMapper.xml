@@ -8,6 +8,17 @@
         WHERE PARENT = #{parent} OR CHILD = #{child}
     </select>
 
+    <!--
+        한 아이의 보호자들입니다. selectList가 PARENT/CHILD를 OR로 묶어 양쪽을 한꺼번에
+        돌려주는 탓에 호출부마다 후처리 필터를 달아야 했는데(AccessService.getChildren,
+        KindergartenService.getMemberships), 방향이 하나로 정해진 조회는 여기서 끝냅니다.
+    -->
+    <select id="selectParents" resultType="FamilyDTO">
+        SELECT PARENT, CHILD, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
+        FROM T_FAMILY
+        WHERE CHILD = #{child}
+    </select>
+
     <select id="select" resultType="FamilyDTO">
         SELECT PARENT, CHILD, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
         FROM T_FAMILY

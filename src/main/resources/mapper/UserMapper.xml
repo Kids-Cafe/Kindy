@@ -75,6 +75,28 @@
         WHERE ID = #{id}
     </update>
 
+    <!--
+        부모가 자기 아이의 프로필을 고칠 때 쓰는 문장입니다. 위의 updateInfo(본인 수정)와
+        달리 NAME을 씁니다 — 아이의 실명은 아이가 채운 적 없는 양식에 어른이 대신 적어 넣은
+        값이라 "가입 시 확정"이 성립하지 않습니다. 대신 WHERE로 대상을 CHILD 계정에 못 박아,
+        이 예외가 성인 본인의 이름까지 열어 주지 않게 합니다.
+
+        보호자 항목을 NULL로 되돌리는 건 지원하지 않습니다. <if>로는 "보내지 않았다"와
+        "비우고 싶다"를 구분할 수 없고, 지금 화면에도 지우기 버튼이 없습니다.
+    -->
+    <update id="updateChildInfo">
+        UPDATE T_USER
+        <set>
+            <if test="name != null">NAME = #{name},</if>
+            <if test="phone != null">PHONE = #{phone},</if>
+            <if test="birthDate != null">BIRTH_DATE = #{birthDate},</if>
+            <if test="gender != null">GENDER = #{gender},</if>
+            <if test="guardianName != null">GUARDIAN_NAME = #{guardianName},</if>
+            <if test="guardianPhone != null">GUARDIAN_PHONE = #{guardianPhone},</if>
+        </set>
+        WHERE ID = #{id} AND ACCOUNT_TYPE = 'CHILD'
+    </update>
+
     <select id="getId" resultType="UserDTO">
         SELECT ID, NAME, EMAIL
         FROM T_USER

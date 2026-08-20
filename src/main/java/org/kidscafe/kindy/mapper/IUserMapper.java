@@ -15,6 +15,7 @@ public interface IUserMapper {
     UserDTO getLogin(UserDTO pDTO) throws Exception;
     UserDTO getInfo(UserDTO pDTO) throws Exception;
     int updateInfo(UserDTO pDTO) throws Exception;
+    int updateChildInfo(UserDTO pDTO) throws Exception;
     UserDTO getId(UserDTO pDTO) throws Exception;
     int updatePassword(UserDTO pDTO) throws Exception;
     int updateEmail(UserDTO pDTO) throws Exception;

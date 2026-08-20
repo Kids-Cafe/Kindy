@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.DiaryDTO;
 import org.kidscafe.kindy.dto.FamilyDTO;
+import org.kidscafe.kindy.dto.FamilyInviteDTO;
 import org.kidscafe.kindy.dto.InviteDTO;
 import org.kidscafe.kindy.dto.ParentNoteDTO;
 import org.kidscafe.kindy.dto.ReportDTO;
@@ -103,52 +104,83 @@ public class UserController {
         }
     }
 
-    @PostMapping(value = "create")
-    public ResultDTO<Void> create(HttpServletRequest request, HttpSession session) {
-        log.info("Calling create");
+    /** Carries a ResultDTO error code out of a parameter helper. */
+    private static class ParameterException extends Exception {
+        private final String code;
 
+        ParameterException(String code) {
+            super(code);
+            this.code = code;
+        }
+    }
+
+    /**
+     * Reads signup parameters into a UserDTO. The per-account-type rules live here and only here,
+     * so user/create and user/child/create cannot drift apart: a child arrives with no email and
+     * no address but must have a birth date, an adult must have verified their address earlier in
+     * the same session.
+     * <p>
+     * {@code forcedType} pins the account type instead of reading it from the request. That is how
+     * user/child/create stays safe without touching the verification rule: it passes CHILD, so the
+     * accountType parameter is ignored and control never reaches the verified-email branch at all.
+     * Nothing here lets an ADULT skip that branch — the only new thing is a caller that could never
+     * have needed it.
+     */
+    private UserDTO parseNewUser(HttpServletRequest request, HttpSession session,
+                                 UserDTO.AccountType forcedType) throws Exception {
         UserDTO pDTO = new UserDTO();
         pDTO.setId(request.getParameter("id"));
         pDTO.setName(request.getParameter("name"));
         String password = request.getParameter("password");
-        if (password == null || password.length() < 8) return ResultDTO.error("INVALID_PARAMETER");
+        if (password == null || password.length() < 8) throw new ParameterException("INVALID_PARAMETER");
         byte[] salt = encryptUtil.getSecureSalt();
         pDTO.setPassword(encryptUtil.encHashSHA256(password, salt));
         pDTO.setPasswordSalt(salt);
         pDTO.setPhone(request.getParameter("phone"));
 
-        String accountType = request.getParameter("accountType");
-        try {
-            pDTO.setAccountType(accountType == null ? UserDTO.AccountType.ADULT : UserDTO.AccountType.valueOf(accountType));
-        } catch (IllegalArgumentException e) {
-            return ResultDTO.error("INVALID_PARAMETER");
+        if (forcedType != null) {
+            pDTO.setAccountType(forcedType);
+        } else {
+            String accountType = request.getParameter("accountType");
+            pDTO.setAccountType(accountType == null
+                    ? UserDTO.AccountType.ADULT
+                    : UserDTO.AccountType.valueOf(accountType));
         }
+
+        boolean isChild = pDTO.getAccountType() == UserDTO.AccountType.CHILD;
 
         // A child signs up without an email of their own, so there is nothing to verify and the
         // column stays NULL. Adults must have verified the address earlier in this same session.
-        if (pDTO.getAccountType() != UserDTO.AccountType.CHILD) {
+        if (!isChild) {
             String email = request.getParameter("email");
-            if (email == null) return ResultDTO.error("MISSING_PARAMETER");
-            if (!email.equals(session.getAttribute("SESSION_VERIFIED_EMAIL"))) return ResultDTO.error("EMAIL_NOT_VERIFIED");
+            if (email == null) throw new ParameterException("MISSING_PARAMETER");
+            if (!email.equals(session.getAttribute("SESSION_VERIFIED_EMAIL")))
+                throw new ParameterException("EMAIL_NOT_VERIFIED");
             pDTO.setEmail(email);
         }
 
         pDTO.setBirthDate(request.getParameter("birthDate"));
         String gender = request.getParameter("gender");
-        try {
-            if (gender != null) pDTO.setGender(UserDTO.Gender.valueOf(gender));
-        } catch (IllegalArgumentException e) {
-            return ResultDTO.error("INVALID_PARAMETER");
-        }
+        if (gender != null) pDTO.setGender(UserDTO.Gender.valueOf(gender));
         pDTO.setGuardianName(request.getParameter("guardianName"));
         pDTO.setGuardianPhone(request.getParameter("guardianPhone"));
 
+        if (!isChild) {
+            pDTO.setAddress(encryptUtil.encAES128CBC(request.getParameter("address")));
+            pDTO.setAddressDetail(encryptUtil.encAES128CBC(request.getParameter("addressDetail")));
+            pDTO.setPostcode(encryptUtil.encAES128CBC(request.getParameter("postcode")));
+        }
+
+        return pDTO;
+    }
+
+    @PostMapping(value = "create")
+    public ResultDTO<Void> create(HttpServletRequest request, HttpSession session) {
+        log.info("Calling create");
+
+        String attemptedId = request.getParameter("id");
         try {
-            if (pDTO.getAccountType() != UserDTO.AccountType.CHILD) {
-                pDTO.setAddress(encryptUtil.encAES128CBC(request.getParameter("address")));
-                pDTO.setAddressDetail(encryptUtil.encAES128CBC(request.getParameter("addressDetail")));
-                pDTO.setPostcode(encryptUtil.encAES128CBC(request.getParameter("postcode")));
-            }
+            UserDTO pDTO = this.parseNewUser(request, session, null);
 
             log.info("User Register Attempt: {}", pDTO.getId());
 
@@ -161,12 +193,59 @@ public class UserController {
             } else {
                 return ResultDTO.error("UNKNOWN_ERROR");
             }
+        } catch (ParameterException e) {
+            return ResultDTO.error(e.code);
         } catch (NullPointerException e) {
             return ResultDTO.error("MISSING_PARAMETER");
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (DuplicateKeyException e) {
-            log.info("Duplicate ID: {}", pDTO.getId());
+            log.info("Duplicate ID: {}", attemptedId);
+            return ResultDTO.error("DUPLICATE_ID");
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    /**
+     * Registers a child account on behalf of the signed-in adult and links the two in the same
+     * transaction. This is the path that needs no consent step: whoever creates the account is by
+     * definition one party to the relationship, so there is no second party to ask.
+     * <p>
+     * The account type is forced to CHILD rather than read from the request, so this cannot be
+     * used to create an adult and skip email verification. A child may not call it — an account
+     * without a guardian of its own is not a place to hang more accounts off.
+     */
+    @PostMapping(value = "child/create")
+    public ResultDTO<Void> createChild(HttpServletRequest request, HttpSession session) {
+        log.info("Calling createChild");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        String attemptedId = request.getParameter("id");
+        try {
+            UserDTO caller = userService.getInfo(userId);
+            if (caller == null || caller.getAccountType() != UserDTO.AccountType.ADULT)
+                return ResultDTO.error("INVALID_ACCESS");
+
+            UserDTO pDTO = this.parseNewUser(request, session, UserDTO.AccountType.CHILD);
+
+            log.info("Child Register Attempt: {} by {}", pDTO.getId(), userId);
+
+            int res = userService.createChildFor(userId, pDTO);
+            if (res != 1) return ResultDTO.error("UNKNOWN_ERROR");
+
+            return ResultDTO.success("CREATE_COMPLETE");
+        } catch (ParameterException e) {
+            return ResultDTO.error(e.code);
+        } catch (NullPointerException e) {
+            return ResultDTO.error("MISSING_PARAMETER");
+        } catch (IllegalArgumentException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        } catch (DuplicateKeyException e) {
+            log.info("Duplicate ID: {}", attemptedId);
             return ResultDTO.error("DUPLICATE_ID");
         } catch (Exception e) {
             log.info(e.getMessage());
@@ -212,12 +291,28 @@ public class UserController {
         return ResultDTO.success("SIGNED_IN", rDTO);
     }
 
+    /**
+     * The full profile of the caller, or — with {@code userId} — of a child they are entitled to
+     * see. Omitting the parameter behaves exactly as before, which matters because the login flow
+     * calls this immediately after authenticating.
+     * <p>
+     * The gate is {@link IAccessService#canViewChild}, the same one on note/list and report/list,
+     * so a parent and the child's teachers see the profile and nobody else does. It is deliberately
+     * not the looser isMember: the response carries the target's decrypted address, and while a
+     * child's address columns are NULL by check constraint, canViewChild is what keeps this from
+     * becoming a way to read an adult colleague's home address.
+     */
     @GetMapping(value = "info")
-    public ResultDTO<UserDTO.PlainUserDTO> info(HttpSession session) throws Exception {
+    public ResultDTO<UserDTO.PlainUserDTO> info(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling info");
         String id = (String) session.getAttribute("SESSION_USER_ID");
         if (id == null) return ResultDTO.error("INVALID_ACCESS");
-        UserDTO rDTO = userService.getInfo(id);
+
+        String target = request.getParameter("userId");
+        if (target != null && !target.equals(id) && !accessService.canViewChild(id, target))
+            return ResultDTO.error("INVALID_ACCESS");
+
+        UserDTO rDTO = userService.getInfo(target == null ? id : target);
         if (rDTO == null) return ResultDTO.error("USER_NOT_FOUND");
         return ResultDTO.success("QUERY_COMPLETE", new UserDTO.PlainUserDTO(
                 rDTO.getId(),
@@ -246,7 +341,8 @@ public class UserController {
      * travels as a set: a road address without its postcode is not a usable address.
      * <p>
      * The real name is not editable here on purpose. What a member is called inside a kindergarten
-     * is their nickname, which lives on the relationship — see kindergarten/setNickname.
+     * is their nickname, which lives on the relationship — see kindergarten/setNickname. A child's
+     * name is a different matter and has its own endpoint: see child/update.
      */
     @PostMapping(value = "update")
     public ResultDTO<Void> update(HttpServletRequest request, HttpSession session) throws Exception {
@@ -280,6 +376,78 @@ public class UserController {
             log.info(e.getMessage());
             return ResultDTO.error("UNKNOWN_ERROR");
         }
+    }
+
+    /**
+     * A parent editing their child's profile. Like update, every field is optional and only what
+     * arrives is written.
+     * <p>
+     * The gate is {@link IAccessService#isParentOf}, deliberately narrower than the canManageChild
+     * used by note/create and report/save. Those record what a teacher observed about a child and
+     * belong to the teacher's job; a child's legal name, birth date and guardian's phone number
+     * are the family's own record, and a teacher having write access to them is a different thing
+     * entirely.
+     * <p>
+     * Address and email are absent because the T_USER check constraints forbid a child from having
+     * either. The password is absent because changing it is a different act with its own flow.
+     */
+    @PostMapping(value = "child/update")
+    public ResultDTO<Void> updateChild(HttpServletRequest request, HttpSession session) {
+        log.info("Calling updateChild");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        String childId = request.getParameter("childId");
+        if (childId == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        if (!accessService.isParentOf(userId, childId)) return ResultDTO.error("INVALID_ACCESS");
+
+        UserDTO pDTO = UserDTO.fromId(childId);
+
+        // Blank is not a value for the columns that are NOT NULL, and for the optional guardian
+        // fields it reads as "leave it alone" rather than "clear it" — see the mapper comment.
+        String name = blankToNull(request.getParameter("name"));
+        String phone = blankToNull(request.getParameter("phone"));
+        String birthDate = blankToNull(request.getParameter("birthDate"));
+        String gender = blankToNull(request.getParameter("gender"));
+
+        if (birthDate != null && !birthDate.matches("\\d{4}-\\d{2}-\\d{2}"))
+            return ResultDTO.error("INVALID_PARAMETER");
+
+        pDTO.setName(name);
+        pDTO.setPhone(phone);
+        pDTO.setBirthDate(birthDate);
+        try {
+            if (gender != null) pDTO.setGender(UserDTO.Gender.valueOf(gender));
+        } catch (IllegalArgumentException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+        pDTO.setGuardianName(blankToNull(request.getParameter("guardianName")));
+        pDTO.setGuardianPhone(blankToNull(request.getParameter("guardianPhone")));
+
+        if (pDTO.getName() == null && pDTO.getPhone() == null && pDTO.getBirthDate() == null
+                && pDTO.getGender() == null && pDTO.getGuardianName() == null
+                && pDTO.getGuardianPhone() == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        try {
+            UserDTO target = userService.getInfo(childId);
+            if (target == null) return ResultDTO.error("USER_NOT_FOUND");
+            // A family row does not itself prove the other end is a child account, so check.
+            if (target.getAccountType() != UserDTO.AccountType.CHILD) return ResultDTO.error("INVALID_PARAMETER");
+
+            if (userService.updateChildInfo(pDTO) == 0) return ResultDTO.error("USER_NOT_FOUND");
+            return ResultDTO.success("UPDATE_COMPLETE");
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     @PostMapping(value = "onboarding/complete")
@@ -780,9 +948,46 @@ public class UserController {
         }
     }
 
+    /**
+     * Retired. This used to create the T_FAMILY row on one side's say-so: the only check was that
+     * the caller was either the parent or the child, so anyone could name an arbitrary account as
+     * their child and, because being a parent is what {@link IAccessService#canManageChild} keys
+     * on, immediately read and write that child's diary, notes and reports.
+     * <p>
+     * The row is now only ever created by an accepted request — family/invite then
+     * family/invite/accept, answered by someone other than whoever asked. Left in place rather
+     * than deleted so an older client gets a code it can explain instead of a 404.
+     */
     @PostMapping(value = "family/add")
-    public ResultDTO<Void> addFamily(HttpServletRequest request, HttpSession session) {
+    public ResultDTO<Void> addFamily() {
         log.info("Calling addFamily");
+        return ResultDTO.error("NOT_AVAILABLE");
+    }
+
+    /** Pending link requests this account has standing in, each flagged with whether it may answer. */
+    @GetMapping(value = "family/invite/list")
+    public ResultDTO<List<FamilyInviteDTO>> familyInviteList(HttpSession session) {
+        log.info("Calling familyInviteList");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        try {
+            return ResultDTO.success("QUERY_COMPLETE", userService.getFamilyInvites(userId));
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    /**
+     * Asks for a parent↔child link. Three people can start one: the adult who would become the
+     * parent, the child themself, or a guardian the child already has proposing a second one.
+     * Anyone else has no standing and is turned away here.
+     */
+    @PostMapping(value = "family/invite")
+    public ResultDTO<Void> inviteFamily(HttpServletRequest request, HttpSession session) {
+        log.info("Calling inviteFamily");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -791,18 +996,93 @@ public class UserController {
         if (parent == null) return ResultDTO.error("MISSING_PARAMETER");
         String child = request.getParameter("child");
         if (child == null) return ResultDTO.error("MISSING_PARAMETER");
-        if (!parent.equals(userId) && !child.equals(userId)) return ResultDTO.error("INVALID_ACCESS");
-        if (parent.equals(child)) return ResultDTO.error("INVALID_PARAMETER");
+
+        if (!parent.equals(userId) && !child.equals(userId) && !accessService.isParentOf(userId, child))
+            return ResultDTO.error("INVALID_ACCESS");
 
         try {
-            userService.addFamily(parent, child);
-            return ResultDTO.success("CREATE_COMPLETE");
+            userService.requestFamilyLink(userId, parent, child);
+            return ResultDTO.success("INVITE_COMPLETE");
+        } catch (IllegalArgumentException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        } catch (IllegalStateException e) {
+            return ResultDTO.error("ALREADY_LINKED");
+        } catch (DuplicateKeyException e) {
+            // The pending-only unique key on T_FAMILY_INVITE caught a second live request.
+            return ResultDTO.error("DUPLICATE_REQUEST");
         } catch (Exception e) {
             log.info(e.getMessage());
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
+    @PostMapping(value = "family/invite/accept")
+    public ResultDTO<Void> acceptFamilyInvite(HttpServletRequest request, HttpSession session) {
+        log.info("Calling acceptFamilyInvite");
+        return this.respondToFamilyInvite(request, session, "accept");
+    }
+
+    @PostMapping(value = "family/invite/reject")
+    public ResultDTO<Void> rejectFamilyInvite(HttpServletRequest request, HttpSession session) {
+        log.info("Calling rejectFamilyInvite");
+        return this.respondToFamilyInvite(request, session, "reject");
+    }
+
+    @PostMapping(value = "family/invite/cancel")
+    public ResultDTO<Void> cancelFamilyInvite(HttpServletRequest request, HttpSession session) {
+        log.info("Calling cancelFamilyInvite");
+        return this.respondToFamilyInvite(request, session, "cancel");
+    }
+
+    /**
+     * The three answers differ only in which service call they make and which code they report, so
+     * the session guard, id parsing and exception mapping live here once. Mirrors how
+     * KindergartenService reports the same two failures for kindergarten invites: no standing is
+     * INVALID_ACCESS, already answered is INVALID_PARAMETER.
+     */
+    private ResultDTO<Void> respondToFamilyInvite(HttpServletRequest request, HttpSession session, String action) {
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        try {
+            switch (action) {
+                case "accept" -> userService.acceptFamilyLink(id, userId);
+                case "reject" -> userService.rejectFamilyLink(id, userId);
+                default -> userService.cancelFamilyLink(id, userId);
+            }
+        } catch (IllegalAccessException e) {
+            return ResultDTO.error("INVALID_ACCESS");
+        } catch (IllegalStateException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        } catch (DuplicateKeyException e) {
+            return ResultDTO.error("ALREADY_LINKED");
+        } catch (Exception e) {
+            log.info(e.getMessage());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+
+        return switch (action) {
+            case "accept" -> ResultDTO.success("ACCEPT_COMPLETE");
+            case "reject" -> ResultDTO.success("REJECT_COMPLETE");
+            default -> ResultDTO.success("CANCEL_COMPLETE");
+        };
+    }
+
+    /**
+     * Breaks a parent↔child link. Unlike creating one, either side may do this alone: removing the
+     * row only ever takes access away, so there is nothing for the other side to consent to.
+     * <p>
+     * Removing the last parent is allowed too. It leaves the child with no guardian, which is a
+     * state the rest of the system has to cope with anyway — sealing the exit so that a child can
+     * never end up unattached would trap them instead.
+     */
     @PostMapping(value = "family/remove")
     public ResultDTO<Void> removeFamily(HttpServletRequest request, HttpSession session) {
         log.info("Calling removeFamily");

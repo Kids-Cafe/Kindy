@@ -5,10 +5,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.DiaryDTO;
 import org.kidscafe.kindy.dto.FamilyDTO;
+import org.kidscafe.kindy.dto.FamilyInviteDTO;
 import org.kidscafe.kindy.dto.ParentNoteDTO;
 import org.kidscafe.kindy.dto.ReportDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.mapper.IDiaryMapper;
+import org.kidscafe.kindy.mapper.IFamilyInviteMapper;
 import org.kidscafe.kindy.mapper.IFamilyMapper;
 import org.kidscafe.kindy.mapper.IParentNoteMapper;
 import org.kidscafe.kindy.mapper.IReportMapper;
@@ -22,8 +24,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -32,6 +37,7 @@ public class UserService implements IUserService {
     private final IUserMapper userMapper;
     private final IDiaryMapper diaryMapper;
     private final IFamilyMapper familyMapper;
+    private final IFamilyInviteMapper familyInviteMapper;
     private final IParentNoteMapper parentNoteMapper;
     private final IReportMapper reportMapper;
     private final EncryptUtil encryptUtil;
@@ -102,6 +108,24 @@ public class UserService implements IUserService {
         return userMapper.insertUser(pDTO);
     }
 
+    /**
+     * The account and the parent link go in together. If the link fails the account must not
+     * survive on its own — an orphaned child account nobody can reach is worse than a failed
+     * request, because the id is now taken and the parent cannot retry with it.
+     */
+    @Transactional
+    @Override
+    public int createChildFor(String parentId, UserDTO child) throws Exception {
+        log.info("Calling createChildFor");
+
+        if (child.getAccountType() != UserDTO.AccountType.CHILD) throw new IllegalArgumentException();
+
+        int result = this.create(child);
+        this.addFamily(parentId, child.getId());
+
+        return result;
+    }
+
     @Override
     public UserDTO login(String id, String password) throws Exception {
         log.info("Calling login");
@@ -130,7 +154,27 @@ public class UserService implements IUserService {
     public int update(UserDTO pDTO) throws Exception {
         log.info("Calling update");
 
+        // updateInfo builds its SET clause from whichever fields arrived. With none of them the
+        // clause is empty and MyBatis emits "UPDATE T_USER SET WHERE ID = ?", which is not valid
+        // SQL. The controllers reject that case first; this stops the broken statement from being
+        // one refactor away.
+        if (pDTO.getPhone() == null && pDTO.getAddress() == null
+                && pDTO.getAddressDetail() == null && pDTO.getPostcode() == null) return 0;
+
         return userMapper.updateInfo(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int updateChildInfo(UserDTO pDTO) throws Exception {
+        log.info("Calling updateChildInfo");
+
+        // Same empty-SET hazard as update(), one statement over.
+        if (pDTO.getName() == null && pDTO.getPhone() == null && pDTO.getBirthDate() == null
+                && pDTO.getGender() == null && pDTO.getGuardianName() == null
+                && pDTO.getGuardianPhone() == null) return 0;
+
+        return userMapper.updateChildInfo(pDTO);
     }
 
     @Override
@@ -383,6 +427,135 @@ public class UserService implements IUserService {
         pDTO.setChild(child);
 
         return familyMapper.insert(pDTO);
+    }
+
+    // ---- Family links by consent -------------------------------------------------------------
+
+    @Override
+    public List<FamilyInviteDTO> getFamilyInvites(String userId) throws Exception {
+        log.info("Calling getFamilyInvites");
+
+        List<FamilyInviteDTO> invites = familyInviteMapper.getListForUser(userId);
+        for (FamilyInviteDTO invite : invites) {
+            invite.setCanRespond(this.resolveFamilyApprovers(invite).contains(userId));
+        }
+        return invites;
+    }
+
+    /**
+     * Who may accept or reject this request. The asker is never in the set — if they were, this
+     * would be the old one-sided family/add wearing a costume.
+     * <ul>
+     *   <li>An adult claiming to be a parent: the child's existing parents decide, since they are
+     *       the ones who would be sharing. If there are none, the request is the child's first and
+     *       the child decides.</li>
+     *   <li>A child asking an adult: that adult decides, because nobody is made a parent without
+     *       agreeing to it.</li>
+     *   <li>An existing parent proposing a co-parent: the proposed co-parent decides. Note this is
+     *       also the answer when the proposer is the <em>only</em> parent — "existing parents minus
+     *       the asker" would be empty, and a child too young to press a button must not be the only
+     *       way to add a second guardian.</li>
+     * </ul>
+     */
+    private Set<String> resolveFamilyApprovers(FamilyInviteDTO invite) throws Exception {
+        String parent = invite.getParent();
+        String child = invite.getChild();
+        String requester = invite.getRequesterId();
+
+        FamilyDTO query = new FamilyDTO();
+        query.setChild(child);
+        Set<String> parents = familyMapper.selectParents(query).stream()
+                .map(FamilyDTO::getParent)
+                .collect(Collectors.toSet());
+
+        if (!requester.equals(parent)) {
+            // Asked for on the parent's behalf — by the child, or by another guardian. Either way
+            // the person being signed up as a parent is the one who has to agree.
+            return Set.of(parent);
+        }
+
+        Set<String> approvers = new HashSet<>(parents);
+        approvers.remove(requester);
+        if (approvers.isEmpty()) approvers.add(child);
+        return approvers;
+    }
+
+    @Transactional
+    @Override
+    public int requestFamilyLink(String requesterId, String parent, String child) throws Exception {
+        log.info("Calling requestFamilyLink");
+
+        if (parent.equals(child)) throw new IllegalArgumentException();
+
+        UserDTO parentUser = userMapper.getInfo(UserDTO.fromId(parent));
+        UserDTO childUser = userMapper.getInfo(UserDTO.fromId(child));
+        if (parentUser == null || childUser == null) throw new IllegalArgumentException();
+        // The old family/add let two adults link, which handed one of them write access to the
+        // other's notes and reports. This is the only remaining door, so it is shut here.
+        if (parentUser.getAccountType() != UserDTO.AccountType.ADULT) throw new IllegalArgumentException();
+        if (childUser.getAccountType() != UserDTO.AccountType.CHILD) throw new IllegalArgumentException();
+
+        FamilyDTO existing = new FamilyDTO();
+        existing.setParent(parent);
+        existing.setChild(child);
+        if (familyMapper.select(existing) != null) throw new IllegalStateException("ALREADY_LINKED");
+
+        FamilyInviteDTO pDTO = new FamilyInviteDTO();
+        pDTO.setParent(parent);
+        pDTO.setChild(child);
+        pDTO.setRequesterId(requesterId);
+
+        return familyInviteMapper.insert(pDTO);
+    }
+
+    @Transactional
+    @Override
+    public int acceptFamilyLink(long id, String userId) throws Exception {
+        log.info("Calling acceptFamilyLink");
+
+        FamilyInviteDTO invite = this.pendingFamilyInvite(id);
+        if (!this.resolveFamilyApprovers(invite).contains(userId)) throw new IllegalAccessException();
+
+        // Mark it answered first. updateStatus only moves rows that are still pending, so if two
+        // approvers press accept at once the loser writes nothing and never reaches the insert.
+        invite.setStatus(FamilyInviteDTO.Status.ACCEPTED);
+        int updated = familyInviteMapper.updateStatus(invite);
+        if (updated == 0) throw new IllegalStateException();
+
+        this.addFamily(invite.getParent(), invite.getChild());
+
+        return updated;
+    }
+
+    @Transactional
+    @Override
+    public int rejectFamilyLink(long id, String userId) throws Exception {
+        log.info("Calling rejectFamilyLink");
+
+        FamilyInviteDTO invite = this.pendingFamilyInvite(id);
+        if (!this.resolveFamilyApprovers(invite).contains(userId)) throw new IllegalAccessException();
+
+        invite.setStatus(FamilyInviteDTO.Status.REJECTED);
+        return familyInviteMapper.updateStatus(invite);
+    }
+
+    @Transactional
+    @Override
+    public int cancelFamilyLink(long id, String userId) throws Exception {
+        log.info("Calling cancelFamilyLink");
+
+        FamilyInviteDTO invite = this.pendingFamilyInvite(id);
+        if (!userId.equals(invite.getRequesterId())) throw new IllegalAccessException();
+
+        invite.setStatus(FamilyInviteDTO.Status.CANCELED);
+        return familyInviteMapper.updateStatus(invite);
+    }
+
+    private FamilyInviteDTO pendingFamilyInvite(long id) throws Exception {
+        FamilyInviteDTO invite = familyInviteMapper.getInfo(FamilyInviteDTO.fromId(id));
+        if (invite == null || invite.getStatus() != FamilyInviteDTO.Status.PENDING)
+            throw new IllegalStateException();
+        return invite;
     }
 
     @Transactional

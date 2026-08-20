@@ -16,9 +16,13 @@ public class UserDTO {
         CHILD
     }
 
+    // UNSPECIFIED mirrors the third value the T_USER.GENDER column allows. Without it, reading a
+    // row that holds it fails inside MyBatis's enum type handler rather than at the column, so
+    // user/info answers 500 for that user and nothing else explains why.
     public enum Gender {
         MALE,
-        FEMALE
+        FEMALE,
+        UNSPECIFIED
     }
 
     private String id;
