@@ -72,9 +72,38 @@ public class KindergartenService implements IKindergartenService {
 
     /** Gives the owner a TEACHER membership if they don't already have one of any type. */
     private void enrolOwner(long kindergartenId, String owner) throws Exception {
+        this.assertTypeMatchesAccount(owner, RelationshipDTO.Type.TEACHER);
+
         RelationshipDTO pDTO = RelationshipDTO.fromId(kindergartenId, owner);
         pDTO.setType(RelationshipDTO.Type.TEACHER);
         relationshipMapper.insertIfAbsent(pDTO);
+    }
+
+    /**
+     * A membership row's TYPE must agree with the account behind it: {@code CHILD} belongs to a
+     * {@code CHILD} account and {@code TEACHER} to an {@code ADULT} one.
+     * <p>
+     * This is what keeps parents out of the member list. A parent is <em>not</em> a member of the
+     * kindergarten — they reach it through T_FAMILY, which {@link #getMemberships} and
+     * {@link IAccessService#canView} already widen for them. Without this rule the only way for a
+     * parent to see the kindergarten at all was to enrol <em>themselves</em> as a {@code CHILD},
+     * which put an adult in the children's roster and in every class alongside their child's
+     * classmates.
+     * <p>
+     * Every path that decides a TYPE reads it straight from the request, so the check belongs
+     * here rather than at any single call site. Fails closed: an account that cannot be read is
+     * refused.
+     */
+    private void assertTypeMatchesAccount(String userId, RelationshipDTO.Type type) throws Exception {
+        if (userId == null || type == null) throw new IllegalArgumentException();
+
+        UserDTO user = userMapper.getInfo(UserDTO.fromId(userId));
+        if (user == null || user.getAccountType() == null) throw new IllegalArgumentException();
+
+        UserDTO.AccountType expected = type == RelationshipDTO.Type.CHILD
+                ? UserDTO.AccountType.CHILD
+                : UserDTO.AccountType.ADULT;
+        if (user.getAccountType() != expected) throw new IllegalArgumentException();
     }
 
     @Transactional
@@ -177,6 +206,8 @@ public class KindergartenService implements IKindergartenService {
     public int add(long id, String userId, RelationshipDTO.Type type) throws Exception {
         log.info("Calling add");
 
+        this.assertTypeMatchesAccount(userId, type);
+
         RelationshipDTO pDTO = RelationshipDTO.fromId(id, userId);
         pDTO.setType(type);
 
@@ -276,6 +307,8 @@ public class KindergartenService implements IKindergartenService {
     public int inviteUser(long id, String inviterId, String userId, RelationshipDTO.Type type, Long roleId) throws Exception {
         log.info("Calling inviteUser");
 
+        this.assertTypeMatchesAccount(userId, type);
+
         InviteDTO pDTO = new InviteDTO();
         pDTO.setKindergartenId(id);
         pDTO.setInviterId(inviterId);
@@ -289,12 +322,23 @@ public class KindergartenService implements IKindergartenService {
 
     @Transactional
     @Override
-    public int requestJoin(long id, String userId, RelationshipDTO.Type type) throws Exception {
+    public int requestJoin(long id, String requesterId, String userId, RelationshipDTO.Type type) throws Exception {
         log.info("Calling requestJoin");
+
+        // A child account cannot enrol itself — a guardian files on its behalf, which is also the
+        // only reason this method takes a requester distinct from the subject. Anyone else asking
+        // for somebody other than themself is refused.
+        if (!requesterId.equals(userId) && !accessService.isParentOf(requesterId, userId)) {
+            throw new IllegalAccessException();
+        }
+        this.assertTypeMatchesAccount(userId, type);
 
         InviteDTO pDTO = new InviteDTO();
         pDTO.setKindergartenId(id);
         pDTO.setUserId(userId);
+        // Whoever files the ticket is recorded, so the reviewing director can see that a parent
+        // asked on the child's behalf rather than the child asking alone.
+        pDTO.setInviterId(requesterId);
         pDTO.setType(type);
         pDTO.setDirection(InviteDTO.Direction.JOIN);
 
@@ -309,8 +353,16 @@ public class KindergartenService implements IKindergartenService {
         InviteDTO invite = inviteMapper.getInfo(InviteDTO.fromId(id));
         if (invite == null || invite.getStatus() != InviteDTO.Status.PENDING) throw new IllegalStateException();
 
-        String owner = invite.getDirection() == InviteDTO.Direction.INVITE ? invite.getInviterId() : invite.getUserId();
-        if (!requesterId.equals(owner)) throw new IllegalAccessException();
+        // An INVITE is the kindergarten's to withdraw; a JOIN is the applicant's. A JOIN filed by
+        // a guardian for their child belongs to both of them, so either may take it back — the
+        // child cannot be left holding a request only the parent knew about.
+        if (invite.getDirection() == InviteDTO.Direction.INVITE) {
+            if (!requesterId.equals(invite.getInviterId())) throw new IllegalAccessException();
+        } else if (!requesterId.equals(invite.getUserId())
+                && !requesterId.equals(invite.getInviterId())
+                && !accessService.isParentOf(requesterId, invite.getUserId())) {
+            throw new IllegalAccessException();
+        }
 
         invite.setStatus(InviteDTO.Status.CANCELED);
         return inviteMapper.updateStatus(invite);
@@ -325,6 +377,9 @@ public class KindergartenService implements IKindergartenService {
         if (invite == null || invite.getStatus() != InviteDTO.Status.PENDING) throw new IllegalStateException();
 
         this.checkInviteCounterparty(invite, userId);
+        // Tickets outlive the rule that created them: one filed before this check existed could
+        // still put an adult in the children's roster, so the type is re-checked on the way in.
+        this.assertTypeMatchesAccount(invite.getUserId(), invite.getType());
 
         RelationshipDTO rDTO = RelationshipDTO.fromId(invite.getKindergartenId(), invite.getUserId());
         rDTO.setType(invite.getType());

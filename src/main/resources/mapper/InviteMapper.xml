@@ -8,17 +8,34 @@
         WHERE ID = #{id}
     </select>
 
+    <!--
+        Both lists carry the named account's real name and ACCOUNT_TYPE. TYPE on its own cannot
+        separate a child applying for themself from an adult applying as a "child", so a reviewer
+        reading only the ticket had no way to tell the two apart. INVITER_NAME says who filed it,
+        which for a JOIN is the applicant unless a guardian applied on their behalf.
+        The inviter join is LEFT: JOIN tickets predating that column carry no inviter.
+    -->
     <select id="getListByKindergarten" resultType="InviteDTO">
-        SELECT ID, KINDERGARTEN_ID, USER_ID, INVITER_ID, TYPE, ROLE_ID, DIRECTION, STATUS, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
-        FROM T_INVITE
-        WHERE KINDERGARTEN_ID = #{kindergartenId} AND STATUS = 'PENDING'
+        SELECT I.ID, I.KINDERGARTEN_ID, I.USER_ID, U.NAME USER_NAME, U.ACCOUNT_TYPE, I.INVITER_ID, V.NAME INVITER_NAME, I.TYPE, I.ROLE_ID, I.DIRECTION, I.STATUS, UNIX_TIMESTAMP(I.CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(I.UPDATED_AT) * 1000 UPDATED_AT
+        FROM T_INVITE I
+        JOIN T_USER U ON U.ID = I.USER_ID
+        LEFT JOIN T_USER V ON V.ID = I.INVITER_ID
+        WHERE I.KINDERGARTEN_ID = #{kindergartenId} AND I.STATUS = 'PENDING'
     </select>
 
     <select id="getListByUser" resultType="InviteDTO">
-        SELECT I.ID, I.KINDERGARTEN_ID, K.NAME KINDERGARTEN_NAME, I.USER_ID, I.INVITER_ID, I.TYPE, I.ROLE_ID, I.DIRECTION, I.STATUS, UNIX_TIMESTAMP(I.CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(I.UPDATED_AT) * 1000 UPDATED_AT
+        SELECT I.ID, I.KINDERGARTEN_ID, K.NAME KINDERGARTEN_NAME, I.USER_ID, U.NAME USER_NAME, U.ACCOUNT_TYPE, I.INVITER_ID, V.NAME INVITER_NAME, I.TYPE, I.ROLE_ID, I.DIRECTION, I.STATUS, UNIX_TIMESTAMP(I.CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(I.UPDATED_AT) * 1000 UPDATED_AT
         FROM T_INVITE I
         JOIN T_KINDERGARTEN K ON K.ID = I.KINDERGARTEN_ID
-        WHERE I.USER_ID = #{userId} AND I.STATUS = 'PENDING'
+        JOIN T_USER U ON U.ID = I.USER_ID
+        LEFT JOIN T_USER V ON V.ID = I.INVITER_ID
+        <!--
+            A guardian who applies on a child's behalf holds a ticket named after the child. It has
+            to appear on the guardian's own list too, or they can neither see nor withdraw the
+            request they just made. Only JOIN widens: an INVITE is addressed to its recipient.
+        -->
+        WHERE (I.USER_ID = #{userId} OR (I.DIRECTION = 'JOIN' AND I.INVITER_ID = #{userId}))
+          AND I.STATUS = 'PENDING'
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">

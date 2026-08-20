@@ -23,7 +23,11 @@ public interface IKindergartenService {
     int remove(long id, String userId) throws Exception;
     RelationshipDTO has(long id, String userId) throws Exception;
     int inviteUser(long id, String inviterId, String userId, RelationshipDTO.Type type, Long roleId) throws Exception;
-    int requestJoin(long id, String userId, RelationshipDTO.Type type) throws Exception;
+    /**
+     * Files a JOIN ticket. {@code userId} is who would become the member; {@code requesterId} is
+     * who is asking. They differ only when a guardian applies on behalf of their child.
+     */
+    int requestJoin(long id, String requesterId, String userId, RelationshipDTO.Type type) throws Exception;
     int cancelInvite(long id, String requesterId) throws Exception;
     int acceptInvite(long id, String userId) throws Exception;
     int rejectInvite(long id, String userId) throws Exception;

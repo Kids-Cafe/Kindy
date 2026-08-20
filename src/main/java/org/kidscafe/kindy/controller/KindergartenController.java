@@ -116,6 +116,9 @@ public class KindergartenController {
         } catch (DuplicateKeyException e) {
             log.info("Duplicate BRN: {}", pDTO.getBrn());
             return ResultDTO.error("DUPLICATE_KEY");
+        // Enrolling the owner refuses a child account: running a kindergarten is an adult's job.
+        } catch (IllegalArgumentException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
             log.info(e.toString());
             return ResultDTO.error("UNKNOWN_ERROR");
@@ -157,6 +160,9 @@ public class KindergartenController {
             } else {
                 return ResultDTO.error("UNKNOWN_ERROR");
             }
+        // A child attends the kindergarten; they cannot be handed ownership of it.
+        } catch (IllegalArgumentException e) {
+            return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
             log.info(e.toString());
             return ResultDTO.error("UNKNOWN_ERROR");
@@ -215,8 +221,15 @@ public class KindergartenController {
         }
         String type = request.getParameter("type");
 
+        // Children do not apply for themselves — a guardian names the child in userId. Omitting it
+        // keeps the original meaning: the caller is applying on their own behalf.
+        String userId = request.getParameter("userId");
+        if (userId == null || userId.isBlank()) userId = sessionUserId;
+
         try {
-            kindergartenService.requestJoin(id, sessionUserId, RelationshipDTO.Type.valueOf(type));
+            kindergartenService.requestJoin(id, sessionUserId, userId, RelationshipDTO.Type.valueOf(type));
+        } catch (IllegalAccessException e) {
+            return ResultDTO.error("INVALID_ACCESS");
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
@@ -309,7 +322,10 @@ public class KindergartenController {
             kindergartenService.acceptInvite(id, sessionUserId);
         } catch (IllegalAccessException e) {
             return ResultDTO.error("INVALID_ACCESS");
-        } catch (IllegalStateException e) {
+        // IllegalStateException: the ticket is gone or already answered.
+        // IllegalArgumentException: its TYPE does not match the account it names — a stale ticket
+        // from before that rule existed. Either way the ticket, not the caller, is the problem.
+        } catch (IllegalStateException | IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
             return ResultDTO.error("UNKNOWN_ERROR");
@@ -496,8 +512,10 @@ public class KindergartenController {
             }
         }
 
-        // Deciding who sits in which class is part of running the classes themselves.
-        if (!accessService.hasPermission(id, sessionUserId, RoleDTO.Permission.MANAGE_CLASS))
+        // Deciding who sits in which class is a decision about members, not about the classes:
+        // MANAGE_CLASS creates, renames and deletes the classes themselves. The owner passes
+        // either way — getPermissions grants them everything.
+        if (!accessService.hasPermission(id, sessionUserId, RoleDTO.Permission.MANAGE_MEMBER))
             return ResultDTO.error("INVALID_ACCESS");
         // A class from another kindergarten would silently detach the member from this one.
         if (classId != null && !Long.valueOf(id).equals(accessService.getKindergartenOfClass(classId)))
