@@ -32,7 +32,12 @@ public interface IChatService {
     /** Appends, then reads the stored row back so the caller gets the assigned NUM and CREATED_AT. */
     ChatDTO.MessageDTO appendMessageAndRead(ChatDTO.MessageDTO pDTO) throws Exception;
     String transcribe(Resource resource) throws Exception;
+    /** An answer from the default partner — for callers that have no character to speak as. */
     ChatDTO.MessageDTO requestMessage(long chatId) throws Exception;
+    /** As {@link #requestMessage(long, ChatDTO.Partner)}; an unknown name falls back to the default. */
+    ChatDTO.MessageDTO requestMessage(long chatId, String partner) throws Exception;
+    /** An answer in the voice of the partner the child chose. Only the system prompt differs. */
+    ChatDTO.MessageDTO requestMessage(long chatId, ChatDTO.Partner partner) throws Exception;
     Resource synthesize(String text) throws Exception;
     Resource convert(Resource resource) throws Exception;
 }

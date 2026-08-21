@@ -21,6 +21,36 @@ public class ChatDTO {
     private String host;
     private Long createdAt;
 
+    /**
+     * The AI partner a child talks to.
+     *
+     * The choice is not a column anywhere — it lives on the client and rides along with each
+     * request — so it may only decide what we tell the model about itself. Unknown or missing
+     * values fall back to {@link #kio} rather than failing the turn: a child mid-conversation
+     * losing an answer is worse than talking to the other character for one turn.
+     */
+    @Getter
+    public enum Partner {
+        kio("키오", "당신은 씩씩하고 에너지가 넘칩니다. 호기심이 많아 아이의 이야기에 신나게 반응하고, 아이가 힘들어할 때는 용기를 북돋아 줍니다. 말투는 활기차고 밝습니다."),
+        kina("키나", "당신은 따뜻하고 섬세합니다. 아이의 마음을 먼저 헤아려 기쁠 때 함께 기뻐하고 속상할 때는 조용히 곁에 있어 줍니다. 말투는 부드럽고 다정합니다.");
+
+        private final String label;
+        private final String persona;
+
+        Partner(String label, String persona) {
+            this.label = label;
+            this.persona = persona;
+        }
+
+        public static Partner of(String value) {
+            if (value == null || value.isBlank()) return kio;
+            for (Partner p : values()) {
+                if (p.name().equalsIgnoreCase(value.trim())) return p;
+            }
+            return kio;
+        }
+    }
+
     @Getter
     @AllArgsConstructor
     public static class QueryDTO {

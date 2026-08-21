@@ -29,7 +29,7 @@ class ChatService implements IChatService {
     private String LLM_URL;
     @Value("${kindy.llm.model}")
     private String LLM_MODEL;
-    @Value("${kindy.llm.prompt:당신의 이름은 키나입니다. 당신은 아이들이 좋아할 만한 친근하고 따뜻하며 섬세한 말투를 사용하며, 사용자를 다정한 친구처럼 대해야 합니다. 당신은 문자로만 답변해야 하며 Markdown이나 표 등은 절대로 생성해서는 안 됩니다. 당신은 반드시 한국어 및 한글, 숫자와 문장 부호만 사용해야 합니다. 당신의 답변은 너무 짧아서도 안 되지만 길어서도 안 됩니다.}")
+    @Value("${kindy.llm.prompt:}")
     private String LLM_PROMPT;
     @Value("${kindy.tts.url}")
     private String TTS_URL;
@@ -219,6 +219,33 @@ class ChatService implements IChatService {
      */
     private static final int LLM_HISTORY_TURNS = 30;
 
+    /**
+     * The system prompt, with the partner's own two lines left as placeholders.
+     *
+     * `kindy.llm.prompt` overrides it, and an override may use the same placeholders — but it is
+     * wired as `${LLM_PROMPT:}` in application.properties, so an unset environment variable makes
+     * the property blank rather than absent, and a `@Value` default would never be reached. Hence
+     * the blank check in {@link #systemPrompt} instead.
+     */
+    private static final String DEFAULT_LLM_PROMPT = "당신의 이름은 {name}입니다. {persona} 당신은 아이들이 좋아할 만한 친근하고 따뜻하며 섬세한 말투를 사용하며, 사용자를 다정한 친구처럼 대해야 합니다. 당신은 문자로만 답변해야 하며 Markdown이나 표 등은 절대로 생성해서는 안 됩니다. 당신은 반드시 한국어 및 한글, 숫자와 문장 부호만 사용해야 합니다. 당신의 답변은 너무 짧아서도 안 되지만 길어서도 안 됩니다.";
+
+    /**
+     * The system prompt for one partner.
+     *
+     * Only the prompt changes — the model, the history and the voice are shared — so the character
+     * a child picked shows up as how the assistant talks about and behaves as itself. Placeholders
+     * are always substituted, including `{username}`, which older prompts carry: an unresolved
+     * `{…}` reaching the model reads as an instruction we did not mean to give.
+     */
+    private String systemPrompt(ChatDTO.Partner partner) {
+        String template = (LLM_PROMPT == null || LLM_PROMPT.isBlank()) ? DEFAULT_LLM_PROMPT : LLM_PROMPT;
+
+        return template
+                .replace("{name}", partner.getLabel())
+                .replace("{persona}", partner.getPersona())
+                .replace("{username}", "친구");
+    }
+
     @Override
     public List<ChatDTO.MessageDTO> getRecentMessages(long id, int limit) throws Exception {
         log.info("Calling getRecentMessages");
@@ -228,10 +255,20 @@ class ChatService implements IChatService {
 
     @Override
     public ChatDTO.MessageDTO requestMessage(long chatId) throws Exception {
-        log.info("Calling requestMessage");
+        return this.requestMessage(chatId, (String) null);
+    }
+
+    @Override
+    public ChatDTO.MessageDTO requestMessage(long chatId, String partner) throws Exception {
+        return this.requestMessage(chatId, ChatDTO.Partner.of(partner));
+    }
+
+    @Override
+    public ChatDTO.MessageDTO requestMessage(long chatId, ChatDTO.Partner partner) throws Exception {
+        log.info("Calling requestMessage as {}", partner);
 
         List<ChatDTO.LLMMessageDTO> messages = new ArrayList<>();
-        messages.add(new ChatDTO.LLMMessageDTO(ChatDTO.MessageDTO.Role.system.name(), LLM_PROMPT));
+        messages.add(new ChatDTO.LLMMessageDTO(ChatDTO.MessageDTO.Role.system.name(), this.systemPrompt(partner)));
         for (ChatDTO.MessageDTO m : this.getRecentMessages(chatId, LLM_HISTORY_TURNS)) {
             // Data cards (FOOD, HEALTH, …) are rendered records, not things anyone said.
             if (m.getType() != ChatDTO.MessageDTO.Type.TEXT) continue;
@@ -240,6 +277,8 @@ class ChatService implements IChatService {
         }
 
         ChatDTO.LLMQueryDTO qDTO = new ChatDTO.LLMQueryDTO(LLM_MODEL, messages);
+
+        log.info(qDTO.toString());
 
         ChatDTO.LLMResponseDTO result = restClient.post().uri(LLM_URL)
                 .contentType(MediaType.APPLICATION_JSON)

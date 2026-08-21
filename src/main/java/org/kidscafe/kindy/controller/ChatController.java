@@ -163,9 +163,13 @@ public class ChatController {
         }
     }
 
+    // `partner` names the character to answer as (kio/kina). It is the client's to keep — nothing
+    // stores it here — so it comes in with the request, and an unknown or missing name answers as
+    // the default character rather than refusing the turn.
     @PostMapping(value = "request")
     public ResultDTO<ChatDTO.MessageDTO> request(HttpSession session,
-            @RequestParam long chatId) {
+            @RequestParam long chatId,
+            @RequestParam(required = false) String partner) {
         log.info("Calling request");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
@@ -176,7 +180,7 @@ public class ChatController {
             if (chat == null) return ResultDTO.error("NOT_FOUND");
             if (!isParticipant(chat, userId)) return ResultDTO.error("INVALID_ACCESS");
 
-            ChatDTO.MessageDTO reply = chatService.requestMessage(chatId);
+            ChatDTO.MessageDTO reply = chatService.requestMessage(chatId, partner);
             if (reply == null) return ResultDTO.error("GENERATION_FAILED");
 
             return ResultDTO.success("SEND_COMPLETE", reply);
@@ -200,7 +204,8 @@ public class ChatController {
     public ResultDTO<ChatDTO.TurnDTO> say(HttpSession session,
                                           @RequestParam long chatId,
                                           @RequestParam String content,
-                                          @RequestParam(required = false) String type) {
+                                          @RequestParam(required = false) String type,
+                                          @RequestParam(required = false) String partner) {
         log.info("Calling say");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
@@ -228,7 +233,7 @@ public class ChatController {
         }
 
         try {
-            ChatDTO.MessageDTO reply = chatService.requestMessage(chatId);
+            ChatDTO.MessageDTO reply = chatService.requestMessage(chatId, partner);
             if (reply == null) return ResultDTO.error("GENERATION_FAILED", new ChatDTO.TurnDTO(sent, null));
 
             return ResultDTO.success("SEND_COMPLETE", new ChatDTO.TurnDTO(sent, reply));
