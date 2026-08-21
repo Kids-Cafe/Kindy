@@ -16,11 +16,20 @@
         WHERE CHILD_ID = #{childId} AND CATEGORY = #{category}
     </select>
 
-    <!-- One row per (child, category); saving the same category again replaces the blob. -->
+    <!--
+        One row per (child, category); saving the same category again replaces the blob.
+
+        UPDATED_AT is set by hand rather than left to ON UPDATE CURRENT_TIMESTAMP, which only fires
+        when a column actually changes. That distinction is invisible until something reads the
+        column: IReportService treats UPDATED_AT as "how far into the child's records this report
+        was written from", so a regeneration that happens to produce byte-identical JSON would
+        leave the timestamp behind the conversation and mark the report stale forever — one model
+        call per category, every time the screen opens, for a report that is already right.
+    -->
     <insert id="upsert">
         INSERT INTO T_CHILD_REPORT(CHILD_ID, CATEGORY, DATA)
         VALUES (#{childId}, #{category}, #{data})
-        ON DUPLICATE KEY UPDATE DATA = #{data}
+        ON DUPLICATE KEY UPDATE DATA = #{data}, UPDATED_AT = CURRENT_TIMESTAMP(3)
     </insert>
 
     <delete id="delete">

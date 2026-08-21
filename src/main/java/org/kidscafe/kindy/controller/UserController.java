@@ -15,6 +15,7 @@ import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.service.IAccessService;
 import org.kidscafe.kindy.service.IDiaryService;
 import org.kidscafe.kindy.service.IKindergartenService;
+import org.kidscafe.kindy.service.IReportService;
 import org.kidscafe.kindy.service.IUserService;
 import org.kidscafe.kindy.util.EncryptUtil;
 import org.springframework.dao.DuplicateKeyException;
@@ -31,6 +32,7 @@ public class UserController {
     private final IUserService userService;
     private final IKindergartenService kindergartenService;
     private final IDiaryService diaryService;
+    private final IReportService reportService;
     private final IAccessService accessService;
     private final EncryptUtil encryptUtil;
 
@@ -974,6 +976,59 @@ public class UserController {
         } catch (Exception e) {
             log.info(e.getMessage());
             return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    /**
+     * Writes the child's growth report from their AI-partner conversation and their diary.
+     *
+     * With no `category` it does all five, skipping the ones that are already current — that is
+     * the ordinary call, made when a report screen opens. With a `category` it does that one, and
+     * `force` writes it again even if nothing has been said since.
+     *
+     * A child with too little in their records produces nothing rather than five empty cards, so
+     * an answer of `[]` is the normal outcome for a child who has not been talking, not an error.
+     */
+    @PostMapping(value = "report/generate")
+    public ResultDTO<List<ReportDTO>> generateReport(HttpServletRequest request, HttpSession session) {
+        log.info("Calling generateReport");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        String childId = request.getParameter("childId");
+        if (childId == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        // Writing, so the same gate as report/save — which deliberately excludes the child
+        // themself. Unlike the diary there is no exception for them: a report is written about a
+        // child, not by one, and no screen shows a child their own (see FEATURES_BY_ROLE).
+        if (!accessService.canManageChild(userId, childId)) return ResultDTO.error("INVALID_ACCESS");
+
+        String category = request.getParameter("category");
+        boolean force = Boolean.parseBoolean(request.getParameter("force"));
+
+        ReportDTO.Category only = null;
+        if (category != null) {
+            try {
+                only = ReportDTO.Category.valueOf(category);
+            } catch (IllegalArgumentException e) {
+                return ResultDTO.error("INVALID_PARAMETER");
+            }
+        }
+
+        try {
+            if (only == null) {
+                return ResultDTO.success("GENERATE_COMPLETE", reportService.generateAll(childId, force));
+            }
+
+            ReportDTO report = reportService.generate(childId, only, force);
+
+            return ResultDTO.success("GENERATE_COMPLETE", report == null ? List.of() : List.of(report));
+        } catch (Exception e) {
+            // The model is an external service that can be slow or down. That is an ordinary
+            // failure here, and the client needs to tell it apart from "nothing to write".
+            log.info(e.toString());
+            return ResultDTO.error("GENERATION_FAILED");
         }
     }
 

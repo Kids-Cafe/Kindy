@@ -398,6 +398,17 @@ public class UserService implements IUserService {
         return reportMapper.selectList(pDTO);
     }
 
+    @Override
+    public ReportDTO getReportInfo(String childId, ReportDTO.Category category) throws Exception {
+        log.info("Calling getReportInfo");
+
+        ReportDTO pDTO = new ReportDTO();
+        pDTO.setChildId(childId);
+        pDTO.setCategory(category);
+
+        return reportMapper.select(pDTO);
+    }
+
     @Transactional
     @Override
     public int saveReport(ReportDTO pDTO) throws Exception {

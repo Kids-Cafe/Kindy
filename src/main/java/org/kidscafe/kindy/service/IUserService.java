@@ -60,5 +60,12 @@ public interface IUserService {
     int createParentNoteComment(ParentNoteDTO.CommentDTO pDTO) throws Exception;
     int deleteParentNoteComment(long id) throws Exception;
     List<ReportDTO> getReports(String childId) throws Exception;
+    /**
+     * One category of one child's report, or null if it has never been saved.
+     *
+     * The list above is what a screen asks for; this is what {@link IReportService} asks before it
+     * decides whether that category is worth writing again.
+     */
+    ReportDTO getReportInfo(String childId, ReportDTO.Category category) throws Exception;
     int saveReport(ReportDTO pDTO) throws Exception;
 }
