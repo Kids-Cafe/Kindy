@@ -26,6 +26,21 @@ public interface IChatService {
     List<ChatDTO.MessageDTO> getMessages(long id, long timestamp, int num) throws Exception;
     /** The last `limit` turns, oldest-first — the window we replay to the LLM. */
     List<ChatDTO.MessageDTO> getRecentMessages(long id, int limit) throws Exception;
+    /**
+     * Every day this child talked with their AI partner, newest first, with how much was said.
+     * A child ↔ partner chat is one whose two sides are the same person.
+     */
+    List<ChatDTO.DayDTO> getPartnerDays(String userId) throws Exception;
+    /** One such day, in the order it was said. */
+    List<ChatDTO.MessageDTO> getPartnerDay(String userId, String date) throws Exception;
+    /**
+     * One completion against the configured model, for callers that are not a chat turn.
+     *
+     * Returns the assistant's text, or null when the server answered in a shape we don't know or
+     * with nothing in it. {@code format} is Ollama's structured-output switch — pass "json" to ask
+     * for parseable output, or null to leave the field off the request entirely.
+     */
+    String complete(List<ChatDTO.LLMMessageDTO> messages, String format) throws Exception;
     int addMessage(ChatDTO.MessageDTO pDTO) throws Exception;
     /** Appends with a NUM assigned by the database instead of by the caller. */
     int appendMessage(ChatDTO.MessageDTO pDTO) throws Exception;

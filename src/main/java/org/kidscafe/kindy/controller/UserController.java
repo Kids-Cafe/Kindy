@@ -13,6 +13,7 @@ import org.kidscafe.kindy.dto.ReportDTO;
 import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.service.IAccessService;
+import org.kidscafe.kindy.service.IDiaryService;
 import org.kidscafe.kindy.service.IKindergartenService;
 import org.kidscafe.kindy.service.IUserService;
 import org.kidscafe.kindy.util.EncryptUtil;
@@ -29,6 +30,7 @@ import java.util.List;
 public class UserController {
     private final IUserService userService;
     private final IKindergartenService kindergartenService;
+    private final IDiaryService diaryService;
     private final IAccessService accessService;
     private final EncryptUtil encryptUtil;
 
@@ -548,17 +550,69 @@ public class UserController {
     }
 
     @GetMapping(value = "diary/list")
-    public ResultDTO<List<DiaryDTO>> diaryList(HttpSession session) {
+    public ResultDTO<List<DiaryDTO>> diaryList(HttpServletRequest request, HttpSession session) {
         log.info("Calling diaryList");
 
-        String userId = (String) session.getAttribute("SESSION_USER_ID");
-        if (userId == null) return ResultDTO.error("INVALID_ACCESS");
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        // Defaults to the caller's own diary, as this endpoint always did. Reading a child's takes
+        // the same standing as `diary/info` and as their reports and notes, both of which have
+        // taken a childId from the start — the diary was the odd one out, and a parent could only
+        // open days whose date they already knew.
+        String userId = request.getParameter("userId");
+        if (userId == null) userId = sessionUserId;
+
+        if (!accessService.canViewChild(sessionUserId, userId)) return ResultDTO.error("INVALID_ACCESS");
 
         try {
             return ResultDTO.success("QUERY_COMPLETE", userService.getDiaries(userId));
         } catch (Exception e) {
             log.info(e.getMessage());
             return ResultDTO.error("UNKNOWN_ERROR");
+        }
+    }
+
+    /**
+     * Writes the diary from what the child told their AI partner.
+     *
+     * With no `date` it catches up every day that has a conversation and no entry yet, newest
+     * first — that is the ordinary call, made when the diary screen opens. With a `date` it does
+     * that one day, and only then does `force` rewrite an entry that already exists.
+     *
+     * Days with too little said in them produce nothing rather than an empty entry, so an answer
+     * of `[]` is the normal outcome for a child who has not been talking, not an error.
+     */
+    @PostMapping(value = "diary/generate")
+    public ResultDTO<List<DiaryDTO>> generateDiary(HttpServletRequest request, HttpSession session) {
+        log.info("Calling generateDiary");
+
+        String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
+        if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
+
+        String userId = request.getParameter("userId");
+        if (userId == null) userId = sessionUserId;
+
+        // Writing, so: the child themself, or someone who may write their records. canManageChild
+        // deliberately excludes the child, which is why their own id is checked separately.
+        if (!userId.equals(sessionUserId) && !accessService.canManageChild(sessionUserId, userId)) {
+            return ResultDTO.error("INVALID_ACCESS");
+        }
+
+        String date = request.getParameter("date");
+        boolean force = Boolean.parseBoolean(request.getParameter("force"));
+
+        try {
+            if (date == null) return ResultDTO.success("GENERATE_COMPLETE", diaryService.generateAll(userId));
+
+            DiaryDTO entry = diaryService.generate(userId, date, force);
+
+            return ResultDTO.success("GENERATE_COMPLETE", entry == null ? List.of() : List.of(entry));
+        } catch (Exception e) {
+            // The model is an external service that can be slow or down. That is an ordinary
+            // failure here, and the client needs to tell it apart from "nothing to write".
+            log.info(e.toString());
+            return ResultDTO.error("GENERATION_FAILED");
         }
     }
 
@@ -651,6 +705,11 @@ public class UserController {
     /**
      * Copies the optional diary body fields off the request. `tags` is a comma-separated list;
      * leaving it out keeps whatever tags the entry already has. Returns false on a bad mood value.
+     * <p>
+     * Note what it does <em>not</em> copy: SOURCE_AT. This is the human-facing path, so the entry
+     * is stored with a null there, and that null is what tells {@link IDiaryService} this day now
+     * belongs to a person and must never be regenerated over. It matters on `diary/modify` too —
+     * editing a day the AI wrote is how a child or parent takes it back.
      */
     private boolean applyDiaryFields(DiaryDTO pDTO, HttpServletRequest request) {
         pDTO.setTitle(request.getParameter("title"));

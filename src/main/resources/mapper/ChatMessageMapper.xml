@@ -27,6 +27,44 @@
         </if>
     </select>
 
+    <!--
+        The child's own AI conversations, by calendar day.
+
+        A child ↔ AI partner chat is the one whose two sides are the same person (see
+        ChatController.create), which is what keeps a parent's or teacher's threads out of the
+        diary. A child in two kindergartens has one such chat in each, so a day is the union of
+        them rather than one row per chat.
+
+        Only TEXT counts: FOOD/HEALTH/… rows are rendered data cards, not things anyone said, and
+        a day of nothing but cards has no story in it.
+    -->
+    <select id="selectPartnerDays" resultType="org.kidscafe.kindy.dto.ChatDTO$DayDTO">
+        SELECT DATE_FORMAT(M.CREATED_AT, '%Y-%m-%d') DATE,
+               SUM(CASE WHEN M.ROLE = 'user' THEN 1 ELSE 0 END) USER_MESSAGES,
+               COUNT(*) TOTAL_MESSAGES,
+               UNIX_TIMESTAMP(MAX(M.CREATED_AT)) * 1000 LAST_MESSAGE_AT
+        FROM T_CHAT_MESSAGE M
+        JOIN T_CHAT C ON C.ID = M.CHAT_ID
+        WHERE C.HOST = #{userId} AND C.CLIENT = #{userId}
+          AND M.TYPE = 'TEXT'
+          AND M.CONTENT &#x3C;&#x3E; ''
+        GROUP BY DATE
+        ORDER BY DATE DESC
+    </select>
+
+    <!-- One day of the above, in the order it was said. CREATED_AT first, then NUM, so two
+         kindergartens' chats interleave by time instead of one being appended after the other. -->
+    <select id="selectPartnerDay" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
+        SELECT M.CHAT_ID, M.NUM, M.TYPE, M.CONTENT, M.ROLE, UNIX_TIMESTAMP(M.CREATED_AT) * 1000 CREATED_AT
+        FROM T_CHAT_MESSAGE M
+        JOIN T_CHAT C ON C.ID = M.CHAT_ID
+        WHERE C.HOST = #{userId} AND C.CLIENT = #{userId}
+          AND M.TYPE = 'TEXT'
+          AND M.CONTENT &#x3C;&#x3E; ''
+          AND DATE(M.CREATED_AT) = #{date}
+        ORDER BY M.CREATED_AT, M.CHAT_ID, M.NUM
+    </select>
+
     <!-- The last N turns, oldest-first. Used to bound what we replay to the LLM: the whole
          history grows without limit, and every turn would re-send all of it. -->
     <select id="selectRecent" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">

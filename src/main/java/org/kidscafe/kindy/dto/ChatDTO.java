@@ -74,6 +74,32 @@ public class ChatDTO {
         private Integer maxAmount;
     }
 
+    /**
+     * One calendar day of a child's conversations with their AI partner, and how much was said.
+     *
+     * The diary is written per day, so the counts are what decides whether a day has enough to
+     * write about at all — a day with two "안녕" turns is not a day worth a diary.
+     */
+    @Getter
+    @Setter
+    @ToString
+    @NoArgsConstructor
+    public static class DayDTO {
+        /** YYYY-MM-DD, in the database's timezone — the same calendar the diary is keyed on. */
+        private String date;
+        /** TEXT turns the child themself took. Data cards are not things anyone said. */
+        private int userMessages;
+        private int totalMessages;
+        /**
+         * When the last thing that day was said, in epoch milliseconds.
+         *
+         * This is what tells a finished day from one still being lived in: compared against the
+         * diary's SOURCE_AT it says whether the child has kept talking since the entry was
+         * written, which is the normal state of today's diary.
+         */
+        private long lastMessageAt;
+    }
+
     @Getter
     @Setter
     @ToString
@@ -137,12 +163,24 @@ public class ChatDTO {
     @Getter
     @ToString
     @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class LLMQueryDTO {
         private String model;
         private List<LLMMessageDTO> messages;
         private boolean stream;
+        /**
+         * Ollama's structured-output switch ("json"), for callers that need to parse the answer.
+         *
+         * Left null it is not serialized at all, because it is not a member every server knows:
+         * an OpenAI-compatible endpoint rejects the request outright on an unknown field, and the
+         * chat turns must keep working against both. Only the diary sets it.
+         */
+        private String format;
         public LLMQueryDTO(String model, List<LLMMessageDTO> messages) {
-            this(model, messages, false);
+            this(model, messages, false, null);
+        }
+        public LLMQueryDTO(String model, List<LLMMessageDTO> messages, String format) {
+            this(model, messages, false, format);
         }
     }
 

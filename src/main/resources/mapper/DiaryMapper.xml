@@ -12,7 +12,9 @@
         <result property="summary" column="SUMMARY"/>
         <result property="text" column="CONTENT"/>
         <result property="tag" column="TAG"/>
+        <result property="sourceAt" column="SOURCE_AT"/>
         <result property="createdAt" column="CREATED_AT"/>
+        <result property="updatedAt" column="UPDATED_AT"/>
         <collection property="tags" javaType="java.util.ArrayList" ofType="java.lang.String"
                     select="selectTags" column="{diaryId=ID}"/>
     </resultMap>
@@ -25,7 +27,8 @@
     </select>
 
     <sql id="columns">
-        ID, USER_ID, DATE, MOOD, TITLE, SUMMARY, CONTENT, TAG, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
+        ID, USER_ID, DATE, MOOD, TITLE, SUMMARY, CONTENT, TAG, SOURCE_AT,
+        UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
     </sql>
 
     <select id="selectList" resultMap="diaryMap">
@@ -41,14 +44,22 @@
         WHERE USER_ID = #{userId} AND DATE = #{date}
     </select>
 
+    <!-- SOURCE_AT is written straight from the DTO, including when it is null. Null is what a
+         person writing or editing an entry leaves behind, and it is the flag that stops the
+         generator from ever rewriting this day — so it must not be treated as "unset".
+
+         UPDATED_AT is absent from both statements on purpose: the database maintains it, as it
+         does on every other table here. It records when the row was written, which is a different
+         question from how far into the conversation the entry was written from. -->
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO T_DIARY(USER_ID, DATE, MOOD, TITLE, SUMMARY, CONTENT, TAG)
-        VALUES (#{userId}, #{date}, #{mood}, #{title}, #{summary}, #{text}, #{tag})
+        INSERT INTO T_DIARY(USER_ID, DATE, MOOD, TITLE, SUMMARY, CONTENT, TAG, SOURCE_AT)
+        VALUES (#{userId}, #{date}, #{mood}, #{title}, #{summary}, #{text}, #{tag}, #{sourceAt})
     </insert>
 
     <update id="update">
         UPDATE T_DIARY
-        SET MOOD = #{mood}, TITLE = #{title}, SUMMARY = #{summary}, CONTENT = #{text}, TAG = #{tag}
+        SET MOOD = #{mood}, TITLE = #{title}, SUMMARY = #{summary}, CONTENT = #{text}, TAG = #{tag},
+            SOURCE_AT = #{sourceAt}
         WHERE USER_ID = #{userId} AND DATE = #{date}
     </update>
 

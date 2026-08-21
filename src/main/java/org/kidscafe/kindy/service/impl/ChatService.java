@@ -265,6 +265,39 @@ class ChatService implements IChatService {
     }
 
     @Override
+    public List<ChatDTO.DayDTO> getPartnerDays(String userId) throws Exception {
+        log.info("Calling getPartnerDays for {}", userId);
+
+        return chatMessageMapper.selectPartnerDays(userId);
+    }
+
+    @Override
+    public List<ChatDTO.MessageDTO> getPartnerDay(String userId, String date) throws Exception {
+        log.info("Calling getPartnerDay for {} on {}", userId, date);
+
+        return chatMessageMapper.selectPartnerDay(userId, date);
+    }
+
+    @Override
+    public String complete(List<ChatDTO.LLMMessageDTO> messages, String format) throws Exception {
+        ChatDTO.LLMQueryDTO qDTO = new ChatDTO.LLMQueryDTO(LLM_MODEL, messages, format);
+
+        log.info(qDTO.toString());
+
+        ChatDTO.LLMResponseDTO result = restClient.post().uri(LLM_URL)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(qDTO).retrieve().body(ChatDTO.LLMResponseDTO.class);
+
+        String content = result == null ? null : result.firstContent();
+        if (content == null || content.isBlank()) {
+            log.info("LLM returned no usable content: {}", result);
+            return null;
+        }
+
+        return content.trim();
+    }
+
+    @Override
     public ChatDTO.MessageDTO requestMessage(long chatId) throws Exception {
         return this.requestMessage(chatId, (String) null);
     }
@@ -287,25 +320,14 @@ class ChatService implements IChatService {
             messages.add(ChatDTO.LLMMessageDTO.of(m));
         }
 
-        ChatDTO.LLMQueryDTO qDTO = new ChatDTO.LLMQueryDTO(LLM_MODEL, messages);
-
-        log.info(qDTO.toString());
-
-        ChatDTO.LLMResponseDTO result = restClient.post().uri(LLM_URL)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(qDTO).retrieve().body(ChatDTO.LLMResponseDTO.class);
-
-        String content = result == null ? null : result.firstContent();
         // An empty answer must not become an empty bubble: CONTENT is NOT NULL, and a blank
         // assistant turn would also poison the next request's history.
-        if (content == null || content.isBlank()) {
-            log.info("LLM returned no usable content: {}", result);
-            return null;
-        }
+        String content = this.complete(messages, null);
+        if (content == null) return null;
 
         ChatDTO.MessageDTO mDTO = new ChatDTO.MessageDTO();
         mDTO.setChatId(chatId);
-        mDTO.setContent(content.trim());
+        mDTO.setContent(content);
         mDTO.setType(ChatDTO.MessageDTO.Type.TEXT);
         mDTO.setRole(ChatDTO.MessageDTO.Role.assistant);
 

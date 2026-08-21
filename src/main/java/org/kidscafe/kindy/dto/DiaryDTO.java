@@ -33,5 +33,15 @@ public class DiaryDTO {
     @Deprecated
     private String tag;
     private List<String> tags;
+    /**
+     * How far into the day's conversation this entry was written from — the CREATED_AT, in epoch
+     * milliseconds, of the newest chat message it saw.
+     *
+     * Null means a person wrote or edited it, and the generator leaves those alone forever. A
+     * value older than the day's newest message means the child kept talking after it was written,
+     * which is the ordinary state of today's diary and the one case worth rewriting.
+     */
+    private Long sourceAt;
     private Long createdAt;
+    private Long updatedAt;
 }
