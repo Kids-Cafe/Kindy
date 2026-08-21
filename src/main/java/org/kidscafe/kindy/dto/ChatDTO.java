@@ -31,15 +31,27 @@ public class ChatDTO {
      */
     @Getter
     public enum Partner {
-        kio("키오", "당신은 씩씩하고 에너지가 넘칩니다. 호기심이 많아 아이의 이야기에 신나게 반응하고, 아이가 힘들어할 때는 용기를 북돋아 줍니다. 말투는 활기차고 밝습니다."),
-        kina("키나", "당신은 따뜻하고 섬세합니다. 아이의 마음을 먼저 헤아려 기쁠 때 함께 기뻐하고 속상할 때는 조용히 곁에 있어 줍니다. 말투는 부드럽고 다정합니다.");
+        kio("키오", "당신은 씩씩하고 에너지가 넘칩니다. 호기심이 많아 아이의 이야기에 신나게 반응하고, 아이가 힘들어할 때는 용기를 북돋아 줍니다. 말투는 활기차고 밝습니다.", 1.05, 4),
+        kina("키나", "당신은 따뜻하고 섬세합니다. 아이의 마음을 먼저 헤아려 기쁠 때 함께 기뻐하고 속상할 때는 조용히 곁에 있어 줍니다. 말투는 부드럽고 다정합니다.", 0.95, 8);
 
         private final String label;
         private final String persona;
+        /**
+         * How the character sounds, on top of whichever voice model is configured for it.
+         *
+         * These two run through the same pipeline everything else does — synthesis speed, then a
+         * pitch shift during conversion — so the two still sound apart even where both partners
+         * share one voice model, which is what we ship. Kio is the brisker, lower of the two;
+         * Kina the softer, higher one.
+         */
+        private final double speed;
+        private final int pitchShift;
 
-        Partner(String label, String persona) {
+        Partner(String label, String persona, double speed, int pitchShift) {
             this.label = label;
             this.persona = persona;
+            this.speed = speed;
+            this.pitchShift = pitchShift;
         }
 
         public static Partner of(String value) {

@@ -38,6 +38,18 @@ public interface IChatService {
     ChatDTO.MessageDTO requestMessage(long chatId, String partner) throws Exception;
     /** An answer in the voice of the partner the child chose. Only the system prompt differs. */
     ChatDTO.MessageDTO requestMessage(long chatId, ChatDTO.Partner partner) throws Exception;
+    /** Plain speech, in nobody's voice in particular. */
     Resource synthesize(String text) throws Exception;
+    /** As {@link #synthesize(String, ChatDTO.Partner)}; a missing name means no character. */
+    Resource synthesize(String text, String partner) throws Exception;
+    /** Speech at the partner's own pace. A null partner keeps the neutral speed. */
+    Resource synthesize(String text, ChatDTO.Partner partner) throws Exception;
     Resource convert(Resource resource) throws Exception;
+    /** As {@link #convert(Resource, ChatDTO.Partner)}; a missing name means no character. */
+    Resource convert(Resource resource, String partner) throws Exception;
+    /**
+     * Speech recast in the partner's voice — their model if one is configured for them, and their
+     * own pitch either way. A null partner keeps the shared model and the neutral shift.
+     */
+    Resource convert(Resource resource, ChatDTO.Partner partner) throws Exception;
 }

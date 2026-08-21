@@ -37,6 +37,17 @@ class ChatService implements IChatService {
     private String STS_URL;
     @Value("${kindy.sts.model}")
     private String STS_MODEL;
+    /**
+     * Per-partner voice models, when a deployment has trained one for each character.
+     *
+     * Blank — which is the default, and what `${STS_MODEL_KIO:}` leaves behind when the variable is
+     * unset — means "use the shared model": the two partners then still differ by speed and pitch
+     * (see {@link ChatDTO.Partner}) rather than sounding identical.
+     */
+    @Value("${kindy.sts.model.kio:}")
+    private String STS_MODEL_KIO;
+    @Value("${kindy.sts.model.kina:}")
+    private String STS_MODEL_KINA;
 
     private final RestClient restClient;
     private final IChatMapper chatMapper;
@@ -303,24 +314,70 @@ class ChatService implements IChatService {
 
     @Override
     public Resource synthesize(String text) throws Exception {
-        log.info("Calling synthesize");
+        return this.synthesize(text, (ChatDTO.Partner) null);
+    }
+
+    @Override
+    public Resource synthesize(String text, String partner) throws Exception {
+        return this.synthesize(text, voicePartner(partner));
+    }
+
+    /**
+     * Unlike the prompt, speech has a neutral setting, so an absent name stays absent instead of
+     * becoming the default character: a caller that never had a character (the schedule announcer)
+     * should not start sounding like Kio because it left the parameter off.
+     */
+    private static ChatDTO.Partner voicePartner(String value) {
+        return value == null || value.isBlank() ? null : ChatDTO.Partner.of(value);
+    }
+
+    @Override
+    public Resource synthesize(String text, ChatDTO.Partner partner) throws Exception {
+        log.info("Calling synthesize as {}", partner);
+
+        // Null is "nobody in particular" — the schedule announcer and anything else that speaks
+        // without a character. It keeps the neutral speed the endpoint has always used.
+        double speed = partner == null ? 1.0 : partner.getSpeed();
 
         return restClient.post().uri(TTS_URL).contentType(MediaType.APPLICATION_JSON).body(Map.of(
                 "text", text,
                 "language", "KR",
                 "speaker", "KR",
-                "speed", 1.0
+                "speed", speed
         )).retrieve().body(Resource.class);
+    }
+
+    /** The voice model trained for this partner, or the shared one when none is configured. */
+    private String voiceModel(ChatDTO.Partner partner) {
+        String configured = partner == ChatDTO.Partner.kina ? STS_MODEL_KINA
+                : partner == ChatDTO.Partner.kio ? STS_MODEL_KIO
+                : null;
+
+        return configured == null || configured.isBlank() ? STS_MODEL : configured.trim();
     }
 
     @Override
     public Resource convert(Resource resource) throws Exception {
-        log.info("Calling convert");
+        return this.convert(resource, (ChatDTO.Partner) null);
+    }
+
+    @Override
+    public Resource convert(Resource resource, String partner) throws Exception {
+        return this.convert(resource, voicePartner(partner));
+    }
+
+    @Override
+    public Resource convert(Resource resource, ChatDTO.Partner partner) throws Exception {
+        log.info("Calling convert as {}", partner);
+
+        // 6 is the shift this endpoint used before the characters had voices of their own; it stays
+        // the answer for callers that don't name one.
+        int pitchShift = partner == null ? 6 : partner.getPitchShift();
 
         MultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
         parts.add("file", resource);
-        parts.add("model_name", STS_MODEL);
-        parts.add("pitch_shift", 6);
+        parts.add("model_name", this.voiceModel(partner));
+        parts.add("pitch_shift", pitchShift);
 
         return restClient.post().uri(STS_URL).contentType(MediaType.MULTIPART_FORM_DATA).body(parts).retrieve().body(Resource.class);
     }

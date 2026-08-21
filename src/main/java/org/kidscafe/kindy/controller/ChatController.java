@@ -263,8 +263,13 @@ public class ChatController {
         }
     }
 
+    // `partner` picks the voice as well as the words: the character's own speed during synthesis,
+    // and their model and pitch during conversion. Left off, this speaks in the neutral voice the
+    // endpoint has always used.
     @PostMapping(value = "speak", produces = "audio/wav")
-    public ResponseEntity<Resource> speak(HttpSession session, @RequestParam(value = "text") String text) {
+    public ResponseEntity<Resource> speak(HttpSession session,
+                                          @RequestParam(value = "text") String text,
+                                          @RequestParam(required = false) String partner) {
         log.info("Calling speak");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
@@ -272,16 +277,17 @@ public class ChatController {
         if (text == null || text.isBlank()) return ResponseEntity.badRequest().build();
 
         try {
-            Resource audioStream = chatService.synthesize(text);
-            Resource convertedAudioStream = chatService.convert(audioStream);
+            Resource audioStream = chatService.synthesize(text, partner);
+            Resource convertedAudioStream = chatService.convert(audioStream, partner);
             return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav")).body(convertedAudioStream);
         } catch (Exception e) {
             // Voice conversion is the fragile half. Losing the character voice is a smaller loss
-            // than losing the voice, so fall back to plain synthesis before giving up.
+            // than losing the voice, so fall back to plain synthesis before giving up — still at
+            // the character's own pace, which is the part of them that survives without it.
             log.info(e.toString());
             try {
                 return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav"))
-                        .body(chatService.synthesize(text));
+                        .body(chatService.synthesize(text, partner));
             } catch (Exception fallback) {
                 log.info(fallback.toString());
                 return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
