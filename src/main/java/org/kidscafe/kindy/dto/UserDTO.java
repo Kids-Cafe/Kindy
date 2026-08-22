@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
+import java.util.List;
+
 @Getter
 @Setter
 @ToString
@@ -50,6 +52,7 @@ public class UserDTO {
     }
 
     @Getter
+    @Setter
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class PlainUserDTO {
@@ -68,5 +71,18 @@ public class UserDTO {
         private Boolean onboardingCompleted;
         private Long createdAt;
         private Long updatedAt;
+
+        /**
+         * Social providers linked to this account, lowercased for the frontend.
+         * <p>
+         * Sent with the profile rather than fetched separately because the frontend rebuilds its
+         * user object from this response on every refresh. When the field was absent, it filled the
+         * gap with a guess — "signed up with email" — which would have quietly erased a user's
+         * links every time the profile reloaded.
+         * <p>
+         * Null on the projections that describe *other* people (search results, a child's
+         * guardians); who else has linked a Kakao account is nobody's business but theirs.
+         */
+        private List<String> linkedProviders;
     }
 }

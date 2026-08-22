@@ -15,12 +15,15 @@ import org.kidscafe.kindy.dto.UserDTO;
 import org.kidscafe.kindy.service.IAccessService;
 import org.kidscafe.kindy.service.IDiaryService;
 import org.kidscafe.kindy.service.IKindergartenService;
+import org.kidscafe.kindy.service.IOAuthService;
 import org.kidscafe.kindy.service.IReportService;
 import org.kidscafe.kindy.service.IUserService;
 import org.kidscafe.kindy.util.EncryptUtil;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.List;
 
@@ -34,6 +37,7 @@ public class UserController {
     private final IDiaryService diaryService;
     private final IReportService reportService;
     private final IAccessService accessService;
+    private final IOAuthService oauthService;
     private final EncryptUtil encryptUtil;
 
     @GetMapping(value = "getIdExists")
@@ -70,7 +74,15 @@ public class UserController {
         return ResultDTO.success("QUERY_COMPLETE", user);
     }
 
-    @GetMapping(value = "getVerificationEmail")
+    /**
+     * Sends a signup verification code to an address that is not yet registered.
+     * <p>
+     * A POST, despite reading like a query: it sends mail and writes to the session, and a CSRF
+     * check that keys on the HTTP method cannot see a state-changing GET at all. The code itself
+     * is never logged — it is a credential for the length of its life, and a server log is a much
+     * easier place to read it from than an inbox.
+     */
+    @PostMapping(value = "getVerificationEmail")
     public ResultDTO<UserDTO> getVerificationEmail(HttpServletRequest request, HttpSession session) {
         log.info("Calling getVerificationEmail");
 
@@ -82,8 +94,10 @@ public class UserController {
             if (user == null) return ResultDTO.error("UNKNOWN_ERROR");
             if (user.getExists()) return ResultDTO.error("EMAIL_EXISTS");
             String code = userService.sendVerificationCode(email);
-            log.info("code: {}", code);
+            if (code == null) return ResultDTO.error("UNKNOWN_ERROR");
             session.setAttribute("SESSION_VERIFICATION_CODE", code);
+            session.setAttribute("SESSION_VERIFICATION_EXPIRES", System.currentTimeMillis() + VERIFICATION_TTL_MS);
+            session.setAttribute("SESSION_VERIFICATION_ATTEMPTS", 0);
             return ResultDTO.success("SENT_CODE");
         } catch(Exception e) {
             return ResultDTO.error("UNKNOWN_ERROR");
@@ -99,13 +113,70 @@ public class UserController {
         String code = request.getParameter("code");
         if (code == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        if (code.equals(session.getAttribute("SESSION_VERIFICATION_CODE"))) {
-            session.removeAttribute("SESSION_VERIFICATION_CODE");
-            session.setAttribute("SESSION_VERIFIED_EMAIL", email);
-            return ResultDTO.success("VERIFICATION_COMPLETE");
-        } else {
+        String expected = (String) session.getAttribute("SESSION_VERIFICATION_CODE");
+        if (!consumeCodeAttempt(session, expected,
+                "SESSION_VERIFICATION_CODE", "SESSION_VERIFICATION_EXPIRES", "SESSION_VERIFICATION_ATTEMPTS", code)) {
             return ResultDTO.error("INVALID_PARAMETER");
         }
+
+        session.setAttribute("SESSION_VERIFIED_EMAIL", email);
+        return ResultDTO.success("VERIFICATION_COMPLETE");
+    }
+
+    /** How long an emailed code stays usable. Long enough for slow mail, short enough to matter. */
+    private static final long VERIFICATION_TTL_MS = 10 * 60 * 1000L;
+
+    /** Guesses allowed per issued code before it is burned. */
+    private static final int VERIFICATION_MAX_ATTEMPTS = 5;
+
+    /**
+     * Checks one guess against an emailed code, and enforces the two limits that make a six-digit
+     * secret defensible.
+     * <p>
+     * Six digits is a million possibilities, which sounds ample and is not: without a cap, a
+     * script walks the whole space in minutes, and without an expiry a code left in a session
+     * stays guessable indefinitely. So every call costs an attempt, five wrong guesses discard the
+     * code, and it expires on its own regardless.
+     * <p>
+     * The comparison is {@link MessageDigest#isEqual} rather than {@code equals} — the latter
+     * returns as soon as two characters differ, which leaks the length of the matching prefix to
+     * anyone timing the response.
+     *
+     * @return true only if the code matched; the caller should treat false as a flat rejection and
+     *         say nothing about which of the three reasons applied
+     */
+    private boolean consumeCodeAttempt(HttpSession session, String expected,
+                                       String codeKey, String expiresKey, String attemptsKey, String supplied) {
+        if (expected == null) return false;
+
+        Long expiresAt = (Long) session.getAttribute(expiresKey);
+        if (expiresAt == null || System.currentTimeMillis() > expiresAt) {
+            clearCode(session, codeKey, expiresKey, attemptsKey);
+            return false;
+        }
+
+        Integer attempts = (Integer) session.getAttribute(attemptsKey);
+        int used = attempts == null ? 0 : attempts;
+        if (used >= VERIFICATION_MAX_ATTEMPTS) {
+            clearCode(session, codeKey, expiresKey, attemptsKey);
+            return false;
+        }
+        session.setAttribute(attemptsKey, used + 1);
+
+        if (!MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8),
+                                   supplied.getBytes(StandardCharsets.UTF_8))) {
+            return false;
+        }
+
+        // Single use — a code that has done its job must not be replayable.
+        clearCode(session, codeKey, expiresKey, attemptsKey);
+        return true;
+    }
+
+    private void clearCode(HttpSession session, String codeKey, String expiresKey, String attemptsKey) {
+        session.removeAttribute(codeKey);
+        session.removeAttribute(expiresKey);
+        session.removeAttribute(attemptsKey);
     }
 
     /** Carries a ResultDTO error code out of a parameter helper. */
@@ -318,7 +389,7 @@ public class UserController {
 
         UserDTO rDTO = userService.getInfo(target == null ? id : target);
         if (rDTO == null) return ResultDTO.error("USER_NOT_FOUND");
-        return ResultDTO.success("QUERY_COMPLETE", new UserDTO.PlainUserDTO(
+        UserDTO.PlainUserDTO result = new UserDTO.PlainUserDTO(
                 rDTO.getId(),
                 rDTO.getName(),
                 rDTO.getEmail(),
@@ -333,8 +404,19 @@ public class UserController {
                 rDTO.getGuardianPhone(),
                 rDTO.getOnboardingCompleted(),
                 rDTO.getCreatedAt(),
-                rDTO.getUpdatedAt()
-        ));
+                rDTO.getUpdatedAt(),
+                null
+        );
+
+        // Only when looking at your own profile. With a userId this endpoint describes a child the
+        // caller is entitled to see, and their login methods are not part of that entitlement.
+        if (target == null || target.equals(id)) {
+            result.setLinkedProviders(oauthService.getLinksByUser(id).stream()
+                    .map(link -> link.getProvider().name().toLowerCase())
+                    .toList());
+        }
+
+        return ResultDTO.success("QUERY_COMPLETE", result);
     }
 
     /**
@@ -491,6 +573,18 @@ public class UserController {
         return ResultDTO.success(user != null ? "USER_FOUND" : "USER_NOT_FOUND", user);
     }
 
+    /**
+     * Step one of a password reset: identify the account and mail it a code.
+     * <p>
+     * This used to hand out the right to change the password on the strength of the three
+     * parameters below, which are not secrets — a login id, a name and an email address are
+     * knowable about someone. Anyone holding them could take the account. Matching them now only
+     * earns a code sent to the address already on file, and it is possession of *that* which
+     * authorises the change (see {@link #verifyResetCode}).
+     * <p>
+     * The user id goes to {@code SESSION_RESET_TARGET}, deliberately not to {@code NEW_PASSWORD}:
+     * that second attribute is the actual permission, and nothing but a verified code may set it.
+     */
     @PostMapping(value = "searchPassword")
     public ResultDTO<UserDTO> searchPassword(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling searchPassword");
@@ -502,17 +596,52 @@ public class UserController {
         String email = request.getParameter("email");
         if (email == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        // TODO: add email auth before proceeding
-
         UserDTO rDTO = userService.getId(name, email, id);
 
         if (rDTO == null) return ResultDTO.error("USER_NOT_FOUND");
 
-        session.setAttribute("NEW_PASSWORD", rDTO.getId());
+        // Any half-finished attempt is void the moment a new one starts.
+        session.removeAttribute("NEW_PASSWORD");
 
-        return ResultDTO.success("USER_FOUND", rDTO);
+        String code = userService.sendVerificationCode(email);
+        if (code == null) return ResultDTO.error("UNKNOWN_ERROR");
+
+        session.setAttribute("SESSION_RESET_TARGET", rDTO.getId());
+        session.setAttribute("SESSION_RESET_CODE", code);
+        session.setAttribute("SESSION_RESET_EXPIRES", System.currentTimeMillis() + VERIFICATION_TTL_MS);
+        session.setAttribute("SESSION_RESET_ATTEMPTS", 0);
+
+        return ResultDTO.success("SENT_CODE", rDTO);
     }
 
+    /**
+     * Step two: prove possession of the emailed code, and only then earn the right to set a new
+     * password. Limits and constant-time comparison come from {@link #consumeCodeAttempt}.
+     */
+    @PostMapping(value = "verifyResetCode")
+    public ResultDTO<Void> verifyResetCode(HttpServletRequest request, HttpSession session) {
+        log.info("Calling verifyResetCode");
+
+        String code = request.getParameter("code");
+        if (code == null) return ResultDTO.error("MISSING_PARAMETER");
+
+        String target = (String) session.getAttribute("SESSION_RESET_TARGET");
+        if (target == null) return ResultDTO.error("INVALID_ACCESS");
+
+        String expected = (String) session.getAttribute("SESSION_RESET_CODE");
+        if (!consumeCodeAttempt(session, expected,
+                "SESSION_RESET_CODE", "SESSION_RESET_EXPIRES", "SESSION_RESET_ATTEMPTS", code)) {
+            return ResultDTO.error("INVALID_PARAMETER");
+        }
+
+        // Verified — promote the target into the attribute newPassword actually honours.
+        session.removeAttribute("SESSION_RESET_TARGET");
+        session.setAttribute("NEW_PASSWORD", target);
+
+        return ResultDTO.success("VERIFICATION_COMPLETE");
+    }
+
+    /** Step three: set the new password for the account verified above. */
     @PostMapping(value = "newPassword")
     public ResultDTO<Void> newPassword(HttpServletRequest request, HttpSession session) throws Exception {
         log.info("Calling newPassword");
@@ -529,6 +658,38 @@ public class UserController {
         userService.updatePassword(newPassword, password);
 
         session.removeAttribute("NEW_PASSWORD");
+
+        return ResultDTO.success("UPDATE_COMPLETE");
+    }
+
+    /**
+     * Changes the password of the signed-in user, given their current one.
+     * <p>
+     * This exists because the frontend was otherwise driving the *reset* flow to do it — logging
+     * in to check the old password, then calling searchPassword/newPassword — which is why those
+     * two could not be hardened without breaking the settings screen. Now the two jobs are
+     * separate: reset proves identity by email, change proves it by the current password.
+     * <p>
+     * Reusing {@code userService.login} for that check keeps one implementation of "is this the
+     * right password", so a future change to how passwords are stored cannot leave a second,
+     * weaker comparison behind.
+     */
+    @PostMapping(value = "changePassword")
+    public ResultDTO<Void> changePassword(HttpServletRequest request, HttpSession session) throws Exception {
+        log.info("Calling changePassword");
+
+        String id = (String) session.getAttribute("SESSION_USER_ID");
+        if (id == null) return ResultDTO.error("INVALID_ACCESS");
+
+        String currentPassword = request.getParameter("currentPassword");
+        if (currentPassword == null) return ResultDTO.error("MISSING_PARAMETER");
+        String newPassword = request.getParameter("newPassword");
+        if (newPassword == null) return ResultDTO.error("MISSING_PARAMETER");
+        if (newPassword.length() < 8) return ResultDTO.error("INVALID_PARAMETER");
+
+        if (userService.login(id, currentPassword) == null) return ResultDTO.error("SIGNIN_NO_MATCHES");
+
+        userService.updatePassword(id, newPassword);
 
         return ResultDTO.success("UPDATE_COMPLETE");
     }

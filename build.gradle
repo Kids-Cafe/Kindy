@@ -37,3 +37,56 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+// ── Bundling the SPA into the JAR ────────────────────────────────────────────
+//
+// In production the frontend is served by this application, from the same origin as the API.
+// That is what lets the session cookie be SameSite=Lax without any cross-site caveat, and it
+// removes the possibility of a frontend and backend being deployed at versions that disagree —
+// the two hand-mirror each other's contracts (ResultDTO, form-encoded POSTs, PlainUserDTO), so a
+// mismatch is a real failure mode rather than a theoretical one.
+//
+// Opt-in, because the build otherwise needs Node installed and takes a minute longer for no
+// benefit while working on the backend:
+//
+//     ./gradlew bootJar -Pbundle-frontend
+//
+ext.frontendDir = file("${projectDir}/../KindyFrontend")
+
+tasks.register('buildFrontend', Exec) {
+    onlyIf { project.hasProperty('bundle-frontend') }
+
+    workingDir frontendDir
+    // `npm ci` rather than `npm install`: it installs exactly what the lockfile pins, so the
+    // artifact does not quietly change because a dependency published a new patch release.
+    commandLine 'sh', '-c', 'npm ci && npm run build'
+
+    inputs.dir("${frontendDir}/src")
+    inputs.file("${frontendDir}/package-lock.json")
+    inputs.file("${frontendDir}/vite.config.ts")
+    outputs.dir("${frontendDir}/dist")
+
+    doFirst {
+        if (!frontendDir.exists()) {
+            throw new GradleException("Frontend not found at ${frontendDir} — clone KindyFrontend next to this repo, or build without -Pbundle-frontend.")
+        }
+    }
+}
+
+// The build output goes to its own directory that is then registered as a resource root, rather
+// than being copied straight into build/resources/main. Writing into another task's output
+// directory makes the task graph ambiguous — Gradle cannot tell which of the two should run first,
+// and says so rather than guessing.
+tasks.register('copyFrontend', Copy) {
+    onlyIf { project.hasProperty('bundle-frontend') }
+
+    dependsOn 'buildFrontend'
+    from "${frontendDir}/dist"
+    into layout.buildDirectory.dir('generated-frontend/static')
+}
+
+sourceSets.main.resources.srcDir(layout.buildDirectory.dir('generated-frontend'))
+
+tasks.named('processResources') {
+    dependsOn 'copyFrontend'
+}

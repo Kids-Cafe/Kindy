@@ -23,11 +23,11 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -47,6 +47,8 @@ public class UserService implements IUserService {
     private String EMAIL_SENDER;
     private final String EMAIL_VERIFICATION_TITLE = "[Kindy] 인증 메일";
     private final String EMAIL_VERIFICATION_CONTENT = "Kindy 서비스 이용을 위한 인증 메일입니다. 인증 번호: ";
+
+    private static final SecureRandom VERIFICATION_CODE_RANDOM = new SecureRandom();
 
     @Override
     public UserDTO getIdExists(String id) throws Exception {
@@ -69,7 +71,10 @@ public class UserService implements IUserService {
     public String sendVerificationCode(String email) throws Exception {
         log.info("Calling sendVerificationCode");
 
-        String code = String.format("%06d", ThreadLocalRandom.current().nextInt(0, 1000000));
+        // SecureRandom, not ThreadLocalRandom: this code is a credential. ThreadLocalRandom is a
+        // fast statistical generator whose output is predictable from enough observed values, and
+        // "enough" is not many when the caller can request codes at will.
+        String code = String.format("%06d", VERIFICATION_CODE_RANDOM.nextInt(1000000));
 
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper messageHelper = new MimeMessageHelper(message, "UTF-8");
@@ -306,7 +311,7 @@ public class UserService implements IUserService {
 
         return userMapper.searchUsers(q).stream()
                 .map(u -> new UserDTO.PlainUserDTO(u.getId(), u.getName(), null, null, null, null, null,
-                        u.getAccountType(), null, null, null, null, null, null, null))
+                        u.getAccountType(), null, null, null, null, null, null, null, null))
                 .toList();
     }
 
@@ -446,7 +451,7 @@ public class UserService implements IUserService {
             // A row whose account has since been deleted is skipped rather than shown as a blank.
             if (parent == null) continue;
             result.add(new UserDTO.PlainUserDTO(parent.getId(), parent.getName(), null, parent.getPhone(),
-                    null, null, null, parent.getAccountType(), null, null, null, null, null, null, null));
+                    null, null, null, parent.getAccountType(), null, null, null, null, null, null, null, null));
         }
         return result;
     }

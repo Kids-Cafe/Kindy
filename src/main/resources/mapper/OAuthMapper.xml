@@ -2,5 +2,44 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="org.kidscafe.kindy.mapper.IOAuthMapper">
-    <!-- TODO -->
+    <!--
+        소셜 계정 하나가 어느 Kindy 계정으로 들어가는지 찾습니다. 로그인의 출발점입니다.
+        (ID, PROVIDER)가 기본키라서 결과는 없거나 하나입니다.
+    -->
+    <select id="getLink" resultType="OAuthDTO">
+        SELECT ID, PROVIDER, USER_ID, PROVIDER_EMAIL, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
+        FROM T_OAUTH
+        WHERE ID = #{id} AND PROVIDER = #{provider}
+    </select>
+
+    <!--
+        한 계정에 연동된 제공자 목록입니다. 마이페이지가 쓰고, user/info도 함께 실어 보냅니다 —
+        화면을 그릴 때마다 왕복을 하나 더 만들지 않기 위해서입니다.
+    -->
+    <select id="getLinksByUser" resultType="OAuthDTO">
+        SELECT ID, PROVIDER, USER_ID, PROVIDER_EMAIL, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
+        FROM T_OAUTH
+        WHERE USER_ID = #{userId}
+        ORDER BY CREATED_AT
+    </select>
+
+    <!--
+        연동을 추가합니다. 제약 두 개가 각각 다른 사고를 막습니다:
+        기본키 (ID, PROVIDER)는 소셜 계정 하나가 Kindy 계정 여러 개에 붙는 것을,
+        유니크 (USER_ID, PROVIDER)는 한 계정에 같은 제공자가 두 번 붙는 것을 막습니다.
+        어느 쪽이든 DuplicateKeyException으로 올라오고, 서비스가 둘을 구분해 처리합니다.
+    -->
+    <insert id="insertLink">
+        INSERT INTO T_OAUTH (ID, PROVIDER, USER_ID, PROVIDER_EMAIL)
+        VALUES (#{id}, #{provider}, #{userId}, #{providerEmail})
+    </insert>
+
+    <!--
+        연동을 해제합니다. USER_ID로 함께 거르는 것이 핵심입니다 — PROVIDER만 보고 지우면
+        남의 연동을 지울 수 있습니다.
+    -->
+    <delete id="deleteLink">
+        DELETE FROM T_OAUTH
+        WHERE USER_ID = #{userId} AND PROVIDER = #{provider}
+    </delete>
 </mapper>
