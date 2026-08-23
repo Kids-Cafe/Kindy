@@ -18,11 +18,25 @@ repositories {
     mavenCentral()
 }
 
+// Photo storage. Pinned here because Spring Boot's BOM does not manage the AWS SDK, and deliberately
+// not imported as the AWS BOM: two BOMs would overlap on io.netty, org.slf4j and org.reactivestreams,
+// and which one wins becomes a resolution-order question nobody should have to think about.
+def awsSdkVersion = '2.54.2'
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-restclient'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
     implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:4.0.1'
+    implementation("software.amazon.awssdk:s3:$awsSdkVersion") {
+        // The SDK ships Netty and Apache HttpClient as its default transports. This application
+        // makes a handful of small synchronous calls per photo, so it uses the JDK's own connection
+        // handling instead: two fewer HTTP stacks in the JAR, and no chance of the SDK's Netty
+        // arguing with the one Spring Boot manages.
+        exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+    }
+    implementation "software.amazon.awssdk:url-connection-client:$awsSdkVersion"
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'

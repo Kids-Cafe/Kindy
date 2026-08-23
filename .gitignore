@@ -35,3 +35,6 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Photos stored locally, when no S3 bucket is configured ###
+data/

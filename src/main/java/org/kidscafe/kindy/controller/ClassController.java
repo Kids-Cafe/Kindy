@@ -1,12 +1,15 @@
 package org.kidscafe.kindy.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.*;
 import org.kidscafe.kindy.service.IAccessService;
+import org.kidscafe.kindy.service.IStorageService;
 import org.kidscafe.kindy.service.impl.ClassService;
+import org.kidscafe.kindy.util.ImageType;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 @Slf4j
@@ -205,19 +209,125 @@ public class ClassController {
             return ResultDTO.error("INVALID_ACCESS");
         if (file == null || file.isEmpty()) return ResultDTO.error("MISSING_PARAMETER");
 
+        // What the browser called it and what it said it was are both claims, made inside a body
+        // anything can construct. What the bytes actually are decides the extension, the type
+        // stored on the object, and whether we take it at all.
+        byte[] content;
+        try {
+            content = file.getBytes();
+        } catch (IOException e) {
+            log.info(e.toString());
+            return ResultDTO.error("UNKNOWN_ERROR");
+        }
+
+        ImageType type = ImageType.sniff(content);
+        if (type == null) return ResultDTO.error("INVALID_IMAGE");
+
         PhotoDTO pDTO = new PhotoDTO();
         pDTO.setClassId(classId);
         pDTO.setAuthor(userId);
         pDTO.setCaption(request.getParameter("caption"));
         pDTO.setTheme(request.getParameter("theme"));
+        if (tooLong(pDTO.getCaption())) return ResultDTO.error("INVALID_PARAMETER");
 
         try {
-            classService.addPhoto(pDTO, file.getResource());
+            classService.addPhoto(pDTO, content, type);
             return ResultDTO.success("ADD_COMPLETE");
         } catch (Exception e) {
             log.info(e.toString());
             return ResultDTO.error("UNKNOWN_ERROR");
         }
+    }
+
+    /**
+     * A photo's bytes, for an {@code <img>} tag.
+     *
+     * <p>This is the only endpoint here that does not answer with a {@link ResultDTO}, and the only
+     * one that uses HTTP status codes to say what happened. Both are forced rather than chosen: an
+     * {@code <img>} cannot unwrap an envelope or read a code, so "you may not see this" has to be a
+     * 403 and "there is nothing here" a 404. Binary answers are not new — {@code chat/speak} and
+     * {@code chat/synthesize} already return bytes — but the status codes are, which is why this
+     * says so out loud.
+     *
+     * <p>The permission check runs on <b>every</b> image request rather than once when the album is
+     * listed. That is the whole reason photos are proxied instead of handed out as presigned URLs:
+     * deleting a photo or losing access to a class takes effect on the next fetch, and a link
+     * forwarded to somebody outside the kindergarten is worth nothing to them.
+     *
+     * <p>The bytes at a photo id never change — an edit only ever touches its caption and theme —
+     * so the response is immutable and the ETag is answered before storage is opened at all. A
+     * revisit costs one row read and one permission check, and moves no image data. {@code private}
+     * on the cache header is load-bearing: this response was authorised for one session and must
+     * never be held by a shared cache on the way back.
+     */
+    @GetMapping(value = "photo/raw")
+    public void rawPhoto(HttpServletRequest request, HttpServletResponse response, HttpSession session)
+            throws IOException {
+        log.info("Calling rawPhoto");
+
+        String userId = (String) session.getAttribute("SESSION_USER_ID");
+        if (userId == null) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN);
+            return;
+        }
+
+        long id;
+        try {
+            id = Long.parseLong(request.getParameter("id"));
+        } catch (NumberFormatException e) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+            return;
+        }
+
+        boolean thumbnail = "thumb".equals(request.getParameter("size"));
+
+        try {
+            PhotoDTO photo = classService.getPhotoInfo(id);
+            if (photo == null || photo.getClassId() == null) {
+                response.sendError(HttpServletResponse.SC_NOT_FOUND);
+                return;
+            }
+            if (!accessService.canViewClass(photo.getClassId(), userId)) {
+                response.sendError(HttpServletResponse.SC_FORBIDDEN);
+                return;
+            }
+
+            // The id is enough to tag these bytes: a row's key is written once at upload and never
+            // rewritten (photo/edit touches only CAPTION and THEME), and a key is never reused. So
+            // one id means one set of bytes, for good. The two sizes are tagged apart because they
+            // are two different resources living at two different URLs.
+            String etag = "\"" + id + (thumbnail ? "-thumb" : "") + "\"";
+            response.setHeader("ETag", etag);
+            response.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+            if (etag.equals(request.getHeader("If-None-Match"))) {
+                response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+                return;
+            }
+
+            try (IStorageService.StoredObject object = classService.openPhoto(photo, thumbnail)) {
+                if (object == null) {
+                    // The row outlived its bytes — a delete that half succeeded, most likely.
+                    response.sendError(HttpServletResponse.SC_NOT_FOUND);
+                    return;
+                }
+
+                response.setContentType(object.contentType());
+                response.setContentLengthLong(object.length());
+                // Nothing here is ever HTML, but these bytes come back from our own origin with the
+                // session cookie attached, so a browser must not be left to guess otherwise.
+                response.setHeader("X-Content-Type-Options", "nosniff");
+
+                object.stream().transferTo(response.getOutputStream());
+            }
+        } catch (Exception e) {
+            log.info(e.toString());
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /** {@code T_PHOTO.CAPTION} is VARCHAR(256); past that the insert fails as an opaque error. */
+    private static boolean tooLong(String caption) {
+        return caption != null && caption.length() > 256;
     }
 
     // Caption and theme are set at upload time but editable afterwards; omitting one leaves it alone.
@@ -240,6 +350,7 @@ public class ClassController {
         pDTO.setCaption(request.getParameter("caption"));
         pDTO.setTheme(request.getParameter("theme"));
         if (pDTO.getCaption() == null && pDTO.getTheme() == null) return ResultDTO.error("MISSING_PARAMETER");
+        if (tooLong(pDTO.getCaption())) return ResultDTO.error("INVALID_PARAMETER");
 
         try {
             if (!this.canEditPhoto(id, userId)) return ResultDTO.error("INVALID_ACCESS");
