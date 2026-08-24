@@ -330,6 +330,8 @@ class ChatService implements IChatService {
         mDTO.setContent(content);
         mDTO.setType(ChatDTO.MessageDTO.Type.TEXT);
         mDTO.setRole(ChatDTO.MessageDTO.Role.assistant);
+        // AUTHOR stays null: nobody wrote this. Naming either side of the chat as its author would
+        // credit a person with the model's words.
 
         return this.appendMessageAndRead(mDTO);
     }

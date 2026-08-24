@@ -128,6 +128,26 @@ public class ChatDTO {
         private Type type;
         private String content;
         private Role role;
+        /**
+         * Who wrote it — the user id of the person, or null when nobody did.
+         *
+         * ROLE alone cannot answer this. It separates the child from the model in a self-chat,
+         * where the two sides are the same person, but a conversation between two people is all
+         * `user` rows and ROLE says nothing about which of them spoke. Without this the client had
+         * to guess, and the only guess available — "the host said everything" — showed each
+         * participant their own messages under the other person's name.
+         *
+         * Null means no person: an `assistant` turn, or a row written before the column existed
+         * (see docs/migration-chat-author.sql — old two-person threads are not attributable and are
+         * left unattributed rather than guessed at).
+         *
+         * The server stamps it from the session, and it is never a request parameter — the same
+         * rule ROLE follows, and for the same reason: a caller that can name its own author can put
+         * words in the other participant's mouth.
+         */
+        private String author;
+        /** The author's per-kindergarten nickname, falling back to their real name. Read-only. */
+        private String authorName;
         private Long createdAt;
     }
 

@@ -2,26 +2,47 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="org.kidscafe.kindy.mapper.IChatMessageMapper">
+    <!--
+        Who wrote it, ready to display.
+
+        The author's per-kindergarten nickname wins over their real name — the same rule notices
+        follow — which is why this reaches through T_CHAT for the kindergarten rather than taking a
+        bound parameter: a message knows its chat, and the chat knows where it is filed.
+
+        Every query below aliases the message table `M` so this fragment can be dropped into any of
+        them. It is null for `assistant` rows and for messages written before AUTHOR existed.
+    -->
+    <sql id="authorName">
+        COALESCE(
+            (SELECT NULLIF(R.NICKNAME, '') FROM T_RELATIONSHIP R
+              JOIN T_CHAT C ON C.ID = M.CHAT_ID
+             WHERE R.KINDERGARTEN_ID = C.KINDERGARTEN_ID AND R.USER_ID = M.AUTHOR),
+            (SELECT U.NAME FROM T_USER U WHERE U.ID = M.AUTHOR)
+        ) AUTHOR_NAME
+    </sql>
+
     <select id="selectList" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
-        SELECT CHAT_ID, NUM, TYPE, CONTENT, ROLE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
-        FROM T_CHAT_MESSAGE
-        WHERE CHAT_ID = #{id}
+        SELECT M.CHAT_ID, M.NUM, M.TYPE, M.CONTENT, M.ROLE, M.AUTHOR,
+               <include refid="authorName"/>,
+               UNIX_TIMESTAMP(M.CREATED_AT) * 1000 CREATED_AT
+        FROM T_CHAT_MESSAGE M
+        WHERE M.CHAT_ID = #{id}
         <if test="minNum != null">
-            AND NUM &#x3E;= #{minNum}
+            AND M.NUM &#x3E;= #{minNum}
         </if>
         <if test="maxNum != null">
-            AND NUM &#x3C;= #{maxNum}
+            AND M.NUM &#x3C;= #{maxNum}
         </if>
         <!-- The DTO carries epoch milliseconds; CREATED_AT is a TIMESTAMP. Comparing them
              directly made both bounds match nothing. -->
         <if test="minTimestamp != null">
-            AND CREATED_AT &#x3E;= FROM_UNIXTIME(#{minTimestamp} / 1000)
+            AND M.CREATED_AT &#x3E;= FROM_UNIXTIME(#{minTimestamp} / 1000)
         </if>
         <if test="maxTimestamp != null">
-            AND CREATED_AT &#x3C;= FROM_UNIXTIME(#{maxTimestamp} / 1000)
+            AND M.CREATED_AT &#x3C;= FROM_UNIXTIME(#{maxTimestamp} / 1000)
         </if>
         <!-- Conversation order is the point of this table, and the PK order is not promised. -->
-        ORDER BY NUM
+        ORDER BY M.NUM
         <if test="maxAmount != null">
             LIMIT #{maxAmount}
         </if>
@@ -55,7 +76,8 @@
     <!-- One day of the above, in the order it was said. CREATED_AT first, then NUM, so two
          kindergartens' chats interleave by time instead of one being appended after the other. -->
     <select id="selectPartnerDay" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
-        SELECT M.CHAT_ID, M.NUM, M.TYPE, M.CONTENT, M.ROLE, UNIX_TIMESTAMP(M.CREATED_AT) * 1000 CREATED_AT
+        SELECT M.CHAT_ID, M.NUM, M.TYPE, M.CONTENT, M.ROLE, M.AUTHOR,
+               UNIX_TIMESTAMP(M.CREATED_AT) * 1000 CREATED_AT
         FROM T_CHAT_MESSAGE M
         JOIN T_CHAT C ON C.ID = M.CHAT_ID
         WHERE C.HOST = #{userId} AND C.CLIENT = #{userId}
@@ -67,9 +89,11 @@
 
     <!-- The last N turns, oldest-first. Used to bound what we replay to the LLM: the whole
          history grows without limit, and every turn would re-send all of it. -->
+    <!-- AUTHOR without the name lookup: this feeds the model, which is given `role` and `content`
+         only (ChatDTO.LLMMessageDTO), and it runs on every turn. -->
     <select id="selectRecent" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
         SELECT * FROM (
-            SELECT CHAT_ID, NUM, TYPE, CONTENT, ROLE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
+            SELECT CHAT_ID, NUM, TYPE, CONTENT, ROLE, AUTHOR, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
             FROM T_CHAT_MESSAGE
             WHERE CHAT_ID = #{id}
             ORDER BY NUM DESC
@@ -79,30 +103,37 @@
     </select>
 
     <!-- The row insertNext just wrote. NUM is assigned inside the INSERT, so this is the only
-         way to learn it. -->
+         way to learn it. It is also what `send` and `say` hand straight back to the client, so it
+         carries the display name too — the sender's own bubble must not wait for a re-read to
+         learn whose it is. -->
     <select id="selectLast" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
-        SELECT CHAT_ID, NUM, TYPE, CONTENT, ROLE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
-        FROM T_CHAT_MESSAGE
-        WHERE CHAT_ID = #{id}
-        ORDER BY NUM DESC
+        SELECT M.CHAT_ID, M.NUM, M.TYPE, M.CONTENT, M.ROLE, M.AUTHOR,
+               <include refid="authorName"/>,
+               UNIX_TIMESTAMP(M.CREATED_AT) * 1000 CREATED_AT
+        FROM T_CHAT_MESSAGE M
+        WHERE M.CHAT_ID = #{id}
+        ORDER BY M.NUM DESC
         LIMIT 1
     </select>
 
     <select id="select" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
-        SELECT CHAT_ID, NUM, TYPE, CONTENT, ROLE, UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
-        FROM T_CHAT_MESSAGE
-        WHERE CHAT_ID = #{chatId} AND NUM = #{num}
+        SELECT M.CHAT_ID, M.NUM, M.TYPE, M.CONTENT, M.ROLE, M.AUTHOR,
+               <include refid="authorName"/>,
+               UNIX_TIMESTAMP(M.CREATED_AT) * 1000 CREATED_AT
+        FROM T_CHAT_MESSAGE M
+        WHERE M.CHAT_ID = #{chatId} AND M.NUM = #{num}
     </select>
 
+    <!-- AUTHOR is null for anything the model said; only a person's turn carries one. -->
     <insert id="insert">
-        INSERT INTO T_CHAT_MESSAGE(CHAT_ID, NUM, TYPE, CONTENT, ROLE)
-        VALUES (#{chatId}, #{num}, #{type}, #{content}, #{role})
+        INSERT INTO T_CHAT_MESSAGE(CHAT_ID, NUM, TYPE, CONTENT, ROLE, AUTHOR)
+        VALUES (#{chatId}, #{num}, #{type}, #{content}, #{role}, #{author})
     </insert>
 
     <!-- Appends with a server-assigned NUM so concurrent senders can't pick the same one. -->
     <insert id="insertNext">
-        INSERT INTO T_CHAT_MESSAGE(CHAT_ID, NUM, TYPE, CONTENT, ROLE)
-        VALUES (#{chatId}, (SELECT IFNULL(MAX(M.NUM), 0) + 1 FROM T_CHAT_MESSAGE M WHERE M.CHAT_ID = #{chatId}), #{type}, #{content}, #{role})
+        INSERT INTO T_CHAT_MESSAGE(CHAT_ID, NUM, TYPE, CONTENT, ROLE, AUTHOR)
+        VALUES (#{chatId}, (SELECT IFNULL(MAX(M.NUM), 0) + 1 FROM T_CHAT_MESSAGE M WHERE M.CHAT_ID = #{chatId}), #{type}, #{content}, #{role}, #{author})
     </insert>
 
     <delete id="delete">

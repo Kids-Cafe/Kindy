@@ -101,10 +101,13 @@ public class ChatController {
 
     // NUM is assigned by the database, so two senders racing on the same chat can't collide.
     //
-    // ROLE is deliberately not a parameter. Everything a person sends is a `user` turn; `assistant`
-    // turns are written only by `request`, from what the model actually returned. Letting a caller
-    // name its own role would let a child put words in the AI's mouth — and worse, those words
-    // would come back as context on the next turn, steering the model with text it never produced.
+    // ROLE and AUTHOR are deliberately not parameters. Everything a person sends is a `user` turn
+    // by them; `assistant` turns are written only by `request`, from what the model actually
+    // returned, and carry no author. Letting a caller name its own role would let a child put words
+    // in the AI's mouth — and worse, those words would come back as context on the next turn,
+    // steering the model with text it never produced. Letting it name its own author is the same
+    // hole pointed at the other participant: in a two-person chat it would forge their side of the
+    // conversation. Both come from the session instead.
     @PostMapping(value = "send")
     public ResultDTO<ChatDTO.MessageDTO> send(HttpSession session,
                                 @RequestParam long chatId,
@@ -126,6 +129,7 @@ public class ChatController {
             pDTO.setContent(content);
             pDTO.setType(type == null ? ChatDTO.MessageDTO.Type.TEXT : ChatDTO.MessageDTO.Type.valueOf(type));
             pDTO.setRole(ChatDTO.MessageDTO.Role.user);
+            pDTO.setAuthor(userId);
 
             return ResultDTO.success("SEND_COMPLETE", chatService.appendMessageAndRead(pDTO));
         } catch (IllegalArgumentException e) {
@@ -223,6 +227,7 @@ public class ChatController {
             pDTO.setContent(content);
             pDTO.setType(type == null ? ChatDTO.MessageDTO.Type.TEXT : ChatDTO.MessageDTO.Type.valueOf(type));
             pDTO.setRole(ChatDTO.MessageDTO.Role.user);
+            pDTO.setAuthor(userId);
 
             sent = chatService.appendMessageAndRead(pDTO);
         } catch (IllegalArgumentException e) {
