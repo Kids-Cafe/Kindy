@@ -2,12 +2,14 @@ package org.kidscafe.kindy.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.kidscafe.kindy.config.GoogleTokenProvider;
 import org.kidscafe.kindy.dto.ChatDTO;
 import org.kidscafe.kindy.mapper.IChatMapper;
 import org.kidscafe.kindy.mapper.IChatMessageMapper;
 import org.kidscafe.kindy.service.IChatService;
 import org.kidscafe.kindy.service.ServiceUnavailableException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.MediaType;
@@ -18,8 +20,8 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -27,6 +29,24 @@ import java.util.Map;
 class ChatService implements IChatService {
     @Value("${kindy.stt.url}")
     private String STT_URL;
+    /**
+     * Which dialect {@link #STT_URL} speaks — "openai" or "google".
+     *
+     * <p>A setting rather than something read off the hostname. The URL does carry the answer, but a
+     * rule that infers it is a guess: a proxy, or any gateway not on a Google hostname, silently
+     * selects the wrong builder and fails as a 400 from the far end rather than as a value somebody
+     * can read. Unrecognised values fall back to openai — see {@link #isGoogle}.
+     */
+    @Value("${kindy.stt.dialect:openai}")
+    private String STT_DIALECT;
+    /** As {@link #LLM_KEY}: blank sends no Authorization header, which is what a local server wants. */
+    @Value("${kindy.stt.key:}")
+    private String STT_KEY;
+    @Value("${kindy.stt.language:ko-KR}")
+    private String STT_LANGUAGE;
+    /** Blank leaves the member off the request; see ChatDTO.STTQueryDTO.RecognitionConfig. */
+    @Value("${kindy.stt.model:}")
+    private String STT_MODEL;
     @Value("${kindy.llm.url}")
     private String LLM_URL;
     @Value("${kindy.llm.model}")
@@ -48,6 +68,33 @@ class ChatService implements IChatService {
     private String LLM_PROMPT;
     @Value("${kindy.tts.url}")
     private String TTS_URL;
+    /** As {@link #STT_DIALECT}, for synthesis. */
+    @Value("${kindy.tts.dialect:openai}")
+    private String TTS_DIALECT;
+    @Value("${kindy.tts.key:}")
+    private String TTS_KEY;
+    /** The OpenAI dialect names a model; Google's does not. Blank leaves it off. */
+    @Value("${kindy.tts.model:}")
+    private String TTS_MODEL;
+    /** Google's dialect requires this; the OpenAI one has no language member and infers it. */
+    @Value("${kindy.tts.language:ko-KR}")
+    private String TTS_LANGUAGE;
+    @Value("${kindy.tts.voice:}")
+    private String TTS_VOICE;
+    /**
+     * Per-partner voices, exactly as {@link #STS_MODEL_KIO} works for voice models: blank means "use
+     * the shared voice above", and the two characters then differ by speaking rate alone at this
+     * stage.
+     *
+     * <p>These are the lever that matters for a deployment with no STS_URL, where nothing runs after
+     * synthesis at all — two different voices are then the only thing telling Kio and Kina apart by
+     * ear. A character's pitch is deliberately NOT applied here; it belongs to conversion, and
+     * applying it in both places would transpose the same voice twice.
+     */
+    @Value("${kindy.tts.voice.kio:}")
+    private String TTS_VOICE_KIO;
+    @Value("${kindy.tts.voice.kina:}")
+    private String TTS_VOICE_KINA;
     @Value("${kindy.sts.url}")
     private String STS_URL;
     @Value("${kindy.sts.model}")
@@ -67,6 +114,16 @@ class ChatService implements IChatService {
     private final RestClient restClient;
     private final IChatMapper chatMapper;
     private final IChatMessageMapper chatMessageMapper;
+    /**
+     * The Google access token for the two speech endpoints, when either is set to that dialect.
+     *
+     * <p>A collaborator rather than a {@code @Value} like {@link #LLM_KEY} above, because unlike a key
+     * this is a credential that expires: something has to hold the current one and re-mint it. It
+     * costs the tests their fourth null and earns it — reaching this field at all in a service built
+     * with nulls would be a NullPointerException, so the ServiceUnavailableException they assert also
+     * proves no credential was read for a deployment that has no speech configured.
+     */
+    private final GoogleTokenProvider googleToken;
 
     /**
      * The URL of one of the speech/language services, or a refusal if this deployment has none.
@@ -85,6 +142,150 @@ class ChatService implements IChatService {
             throw new ServiceUnavailableException(variable + " is not configured");
 
         return url;
+    }
+
+    /**
+     * Whether a speech setting names Google's dialect rather than the OpenAI one.
+     *
+     * <p>Anything unrecognised — a typo, a blank, a value from a future release — is read as openai,
+     * which is the portable dialect and the default. Falling back rather than refusing is on purpose:
+     * a misspelt dialect should degrade to the shape most servers speak, not take speech down.
+     */
+    static boolean isGoogle(String dialect) {
+        if (dialect == null || dialect.isBlank()) return false;
+
+        String value = dialect.trim();
+        if (value.equalsIgnoreCase("google")) return true;
+        if (!value.equalsIgnoreCase("openai")) {
+            log.info("unrecognised speech dialect {}, reading it as openai", value);
+        }
+
+        return false;
+    }
+
+    /**
+     * The recording format the browser and this endpoint have agreed on, stated as constants rather
+     * than settings.
+     *
+     * <p>The browser does not record into a container and hand it over — it takes raw samples and
+     * assembles the WAV itself, 16 kHz mono 16-bit LINEAR16, because that is the only thing this end
+     * has ever accepted. Making these properties would let one repository be reconfigured away from
+     * the other, and the symptom of disagreeing is not an error: Google decodes the bytes at whatever
+     * rate it was told and returns a confident transcript of noise.
+     *
+     * <p>They are sent even though the WAV header carries both and the API treats them as optional
+     * for a headered format. Sent, a mismatch with the header is an error rather than a guess — which
+     * is the failure worth having.
+     */
+    private static final String STT_ENCODING = "LINEAR16";
+    private static final int STT_SAMPLE_RATE = 16000;
+
+    /**
+     * What we ask for back from synthesis, in each dialect's spelling of the same thing.
+     *
+     * <p>A WAV with a header on it, and three separate things believe that: {@code produces =
+     * "audio/wav"} on both controller endpoints, the .wav name on the part handed to voice
+     * conversion, and the converter itself. Moving this means moving all four together.
+     */
+    private static final String TTS_ENCODING = "LINEAR16";
+    private static final String SPEECH_FORMAT = "wav";
+
+    /**
+     * How much audio goes into one request, in bytes before base64.
+     *
+     * <p>{@code speech:recognize} is the synchronous endpoint: 60 seconds and 10 MB, inline. Base64
+     * makes four bytes out of three, so 7 MB of recording is already 9.3 MB on the wire.
+     *
+     * <p>Nothing the app itself sends comes near it — the recorder stops at 20 seconds, which is
+     * 640 KB at 16 kHz mono 16-bit. This is for everything else that can POST to the endpoint:
+     * spring.servlet.multipart.max-file-size is 10 MB, and without this a 10 MB upload becomes a
+     * 13 MB request, a 400 naming a limit rather than a file, and a bill for the attempt.
+     *
+     * <p>It is explicitly NOT a duration check and cannot be one — bytes say nothing about seconds
+     * for a compressed format. For the format actually sent, 60 seconds is about 1.9 MB, so Google's
+     * duration limit bites long before this does.
+     */
+    private static final int MAX_INLINE_AUDIO_BYTES = 7_000_000;
+
+    /**
+     * One authorized POST to a Google speech API, with its refusals mapped the way {@link #complete}
+     * maps the model's.
+     *
+     * <p>The token is minted into a local before the request is touched, so "this deployment has no
+     * Google credentials" is answered before anything is sent and reads as NOT_AVAILABLE rather than
+     * as a call that failed.
+     */
+    private <T> T google(String url, String variable, Object body, Class<T> type) {
+        // On the request, never on the RestClient bean. OAuthService is handed the same bean, so a
+        // default Authorization header would send a cloud-platform token — which can spend money —
+        // to Kakao, Naver and Google's own login endpoint. The rule LLM_KEY follows above, and it
+        // matters more here: a leaked API key is a key, a leaked bearer is an hour of an account.
+        String authorization = "Bearer " + googleToken.token();
+
+        try {
+            return restClient.post().uri(url)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .header("Authorization", authorization)
+                    .body(body).retrieve().body(type);
+        } catch (HttpClientErrorException e) {
+            // 401 and 403 are the account, not the request — and there are three of them here where
+            // the model had two:
+            //   401                    the token was refused: a revoked key, a deleted account, clock skew.
+            //   403 PERMISSION_DENIED  the service account may not call this API.
+            //   403 SERVICE_DISABLED   the API was never enabled in the project.
+            // All three are one person's job to fix, no retry helps, and no caller could have asked
+            // differently — the same shape of problem as an unset STT_URL, so the same answer, and
+            // DiaryService.generateAll stops on it rather than spending the week on a refusal.
+            //
+            // The body is logged deliberately: SERVICE_DISABLED carries the console URL that enables
+            // the API, and that link is the entire fix. Nothing sensitive comes back on a refusal —
+            // the recording is in the request, not the response.
+            //
+            // Everything else stays a failure worth retrying. 429 above all, which is a quota saying
+            // "later" and would be a lie as NOT_AVAILABLE; and 400, which is a bug in what we sent —
+            // a bad encoding, audio over a minute — and must not read as a feature turned off.
+            int status = e.getStatusCode().value();
+            if (status == 401 || status == 403) {
+                log.info("Google refused our credentials for {}: {} {}", variable, status, e.getResponseBodyAsString());
+                throw new ServiceUnavailableException(variable + " was refused by Google (" + status + ")");
+            }
+
+            throw e;
+        }
+    }
+
+    /** The first of these that says anything, trimmed — or null, which leaves a member off. */
+    static String voice(String own, String shared) {
+        if (own != null && !own.isBlank()) return own.trim();
+        if (shared != null && !shared.isBlank()) return shared.trim();
+
+        return null;
+    }
+
+    /**
+     * Synthesized speech as a file <b>with a name</b>.
+     *
+     * <p>The name is load-bearing and invisible. Google answers with base64 in a JSON member, so what
+     * comes out of it is bytes and nothing else, and a plain ByteArrayResource returns null from
+     * getFilename(). Spring's FormHttpMessageConverter asks a part exactly that question: a null name
+     * means the multipart part is written with no {@code filename=} at all and, because the part's
+     * content type is derived from the extension, as application/octet-stream. A voice converter that
+     * opens uploads by their name gets a nameless octet-stream and refuses it.
+     *
+     * <p>This did not have to be thought about while the bytes arrived as an HTTP response, because
+     * Spring names such a resource after the upstream's own Content-Disposition. There is no upstream
+     * response to take a name from on the Google path.
+     */
+    static final class WavResource extends ByteArrayResource {
+        WavResource(byte[] audio) {
+            super(audio);
+        }
+
+        @Override
+        public String getFilename() {
+            return "speech.wav";
+        }
     }
 
     @Override
@@ -245,16 +446,70 @@ class ChatService implements IChatService {
     public String transcribe(Resource resource) throws Exception {
         log.info("Calling transcribe");
 
+        // Before anything is read, encoded or minted: a deployment with no speech spends no time and
+        // touches no credential.
+        String url = configured(STT_URL, "STT_URL");
+
+        return isGoogle(STT_DIALECT) ? this.transcribeGoogle(url, resource)
+                                     : this.transcribeOpenAi(url, resource);
+    }
+
+    /**
+     * Transcription in the OpenAI dialect — {@code /v1/audio/transcriptions}, multipart.
+     *
+     * <p>Unchanged from when it was the only one there was, and deliberately so: this is the shape
+     * whisper.cpp, faster-whisper, OpenAI itself, Groq and LM Studio all read, and it is what keeps
+     * this application runnable with no cloud account at all.
+     */
+    private String transcribeOpenAi(String url, Resource resource) {
         MultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
         parts.add("file", resource);
         parts.add("temperature", "0.0");
         parts.add("response_format", "text");
         parts.add("task", "transcribe");
+        // `auto` is this dialect's own, and has no equivalent on the Google side, which requires a
+        // language and cannot guess one. Left here rather than made to follow kindy.stt.language, so
+        // that turning the dialect back does not also change what the recogniser is told.
         parts.add("language", "auto");
 
-        String url = configured(STT_URL, "STT_URL");
+        RestClient.RequestBodySpec request = restClient.post().uri(url);
+        if (STT_KEY != null && !STT_KEY.isBlank()) {
+            request = request.header("Authorization", "Bearer " + STT_KEY.trim());
+        }
 
-        return restClient.post().uri(url).body(parts).retrieve().body(String.class);
+        return request.body(parts).retrieve().body(String.class);
+    }
+
+    /** Transcription in Google's dialect — {@code speech:recognize}, base64 inside JSON. */
+    private String transcribeGoogle(String url, Resource resource) throws Exception {
+        byte[] audio = resource.getContentAsByteArray();
+        if (audio.length > MAX_INLINE_AUDIO_BYTES) {
+            // Not a ServiceUnavailableException: speech is configured and working, this caller sent
+            // too much of it. The controller turns this into TRANSCRIPTION_FAILED, which is the true
+            // answer, and Google is neither asked nor billed for a request it would refuse.
+            throw new IllegalArgumentException("recording is " + audio.length
+                    + " bytes, over the " + MAX_INLINE_AUDIO_BYTES + " this endpoint sends inline");
+        }
+
+        ChatDTO.STTQueryDTO qDTO = new ChatDTO.STTQueryDTO(
+                new ChatDTO.STTQueryDTO.RecognitionConfig(
+                        STT_ENCODING, STT_SAMPLE_RATE, STT_LANGUAGE,
+                        (STT_MODEL == null || STT_MODEL.isBlank()) ? null : STT_MODEL.trim(),
+                        true),
+                new ChatDTO.STTQueryDTO.RecognitionAudio(Base64.getEncoder().encodeToString(audio)));
+
+        // The recording is not in this line: RecognitionAudio.toString redacts it.
+        log.info(qDTO.toString());
+
+        ChatDTO.STTResponseDTO result = this.google(url, "STT_URL", qDTO, ChatDTO.STTResponseDTO.class);
+
+        // Silence answers "" — not null, and certainly not an exception. A recording with nothing in
+        // it comes back as an empty object, and a child who pressed the button and said nothing has
+        // made no mistake.
+        //
+        // And every segment, joined: Google splits at pauses, so the first result is the first
+        // sentence of what was said rather than what was said.
+        return result == null ? "" : result.transcript();
     }
 
     /**
@@ -457,18 +712,80 @@ class ChatService implements IChatService {
     public Resource synthesize(String text, ChatDTO.Partner partner) throws Exception {
         log.info("Calling synthesize as {}", partner);
 
-        // Null is "nobody in particular" — the schedule announcer and anything else that speaks
-        // without a character. It keeps the neutral speed the endpoint has always used.
-        double speed = partner == null ? 1.0 : partner.getSpeed();
-
         String url = configured(TTS_URL, "TTS_URL");
 
-        return restClient.post().uri(url).contentType(MediaType.APPLICATION_JSON).body(Map.of(
-                "text", text,
-                "language", "KR",
-                "speaker", "KR",
-                "speed", speed
-        )).retrieve().body(Resource.class);
+        // Null is "nobody in particular" — the schedule announcer and anything else that speaks
+        // without a character. It keeps the neutral pace speech has always had here. Both dialects
+        // spell it differently (speakingRate, speed) on the same scale: 1.0 is the voice's own pace,
+        // so the characters' 1.05 and 0.95 mean what they always meant.
+        double speed = partner == null ? 1.0 : partner.getSpeed();
+
+        return isGoogle(TTS_DIALECT) ? this.synthesizeGoogle(url, text, partner, speed)
+                                     : this.synthesizeOpenAi(url, text, partner, speed);
+    }
+
+    /**
+     * Synthesis in the OpenAI dialect — {@code /v1/audio/speech}, and the audio itself comes back.
+     *
+     * <p>The portable half, and the reason this dialect is named after a shape rather than a server:
+     * OpenAI, openedai-speech, Kokoro-FastAPI and Speaches all read this body. MeloTTS, which this
+     * endpoint used to speak to directly, is reached by putting a small adapter in front of it —
+     * the cost of no longer carrying a body only one project understands.
+     */
+    private Resource synthesizeOpenAi(String url, String text, ChatDTO.Partner partner, double speed) {
+        ChatDTO.SpeechQueryDTO qDTO = new ChatDTO.SpeechQueryDTO(
+                (TTS_MODEL == null || TTS_MODEL.isBlank()) ? null : TTS_MODEL.trim(),
+                text, this.voiceName(partner), SPEECH_FORMAT, speed);
+
+        log.info(qDTO.toString());
+
+        RestClient.RequestBodySpec request = restClient.post().uri(url)
+                .contentType(MediaType.APPLICATION_JSON);
+        if (TTS_KEY != null && !TTS_KEY.isBlank()) {
+            request = request.header("Authorization", "Bearer " + TTS_KEY.trim());
+        }
+
+        return request.body(qDTO).retrieve().body(Resource.class);
+    }
+
+    /** Synthesis in Google's dialect — {@code text:synthesize}, base64 inside JSON. */
+    private Resource synthesizeGoogle(String url, String text, ChatDTO.Partner partner, double speed) {
+        ChatDTO.TTSQueryDTO qDTO = new ChatDTO.TTSQueryDTO(
+                new ChatDTO.TTSQueryDTO.Input(text),
+                new ChatDTO.TTSQueryDTO.Voice(TTS_LANGUAGE, this.voiceName(partner)),
+                new ChatDTO.TTSQueryDTO.AudioConfig(TTS_ENCODING, speed));
+
+        log.info(qDTO.toString());
+
+        ChatDTO.TTSResponseDTO result = this.google(url, "TTS_URL", qDTO, ChatDTO.TTSResponseDTO.class);
+
+        byte[] audio = result == null ? null : result.audio();
+        if (audio == null || audio.length == 0) {
+            // A 200 with nothing in it. Returning an empty Resource would be worse than failing: the
+            // browser gets a zero-byte audio/wav, plays nothing, and reports nothing.
+            log.info("Cloud Text-to-Speech answered with no audio: {}", result);
+            throw new IllegalStateException("Cloud Text-to-Speech returned no audio");
+        }
+
+        // LINEAR16 arrives with a WAV header already on it, so these bytes are a playable file and
+        // not raw samples needing one written. Named, because the next hop reads the name.
+        return new WavResource(audio);
+    }
+
+    /**
+     * The voice configured for this partner, or the shared one, or none at all.
+     *
+     * <p>Deliberately shaped like {@link #voiceModel} and deliberately different in its last line:
+     * voiceModel falls back to a possibly-blank STS_MODEL because a multipart field can be empty, but
+     * a blank voice name in JSON is not "no preference" — it is a name that matches no voice. Null is
+     * how a member is left off, so null is what "none configured" has to become.
+     */
+    private String voiceName(ChatDTO.Partner partner) {
+        String configured = partner == ChatDTO.Partner.kina ? TTS_VOICE_KINA
+                : partner == ChatDTO.Partner.kio ? TTS_VOICE_KIO
+                : null;
+
+        return voice(configured, TTS_VOICE);
     }
 
     /** The voice model trained for this partner, or the shared one when none is configured. */

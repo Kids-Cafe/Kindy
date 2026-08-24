@@ -335,28 +335,40 @@ public class ChatController {
         if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         if (text == null || text.isBlank()) return ResponseEntity.badRequest().build();
 
+        // The two halves are caught separately, and this one is not retried. It used to be: any
+        // failure at all fell through to a second `synthesize` call, which was free against a
+        // self-hosted server and is a second bill against a cloud one — including in the case where
+        // the thing that had just failed *was* the synthesizer, so an outage charged for every
+        // utterance twice and answered none of them. It also charged twice on the ordinary path of a
+        // deployment with no STS_URL, where conversion throws every time by design.
+        Resource speech;
         try {
-            Resource audioStream = chatService.synthesize(text, partner);
-            Resource convertedAudioStream = chatService.convert(audioStream, partner);
-            return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav")).body(convertedAudioStream);
-        } catch (Exception e) {
-            // Voice conversion is the fragile half. Losing the character voice is a smaller loss
-            // than losing the voice, so fall back to plain synthesis before giving up — still at
-            // the character's own pace, which is the part of them that survives without it.
+            speech = chatService.synthesize(text, partner);
+        } catch (ServiceUnavailableException e) {
+            // 503 rather than the 502 below: nothing upstream failed, because there is no upstream —
+            // no TTS_URL, or no credentials to reach it with.
             log.info(e.toString());
-            try {
-                return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav"))
-                        .body(chatService.synthesize(text, partner));
-            } catch (ServiceUnavailableException fallback) {
-                // Reached when synthesis itself is unconfigured. An unconfigured *conversion*
-                // never gets here — it is caught above and falls back to plain synthesis, which is
-                // the whole point of the fallback and still works without STS_URL.
-                log.info(fallback.toString());
-                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
-            } catch (Exception fallback) {
-                log.info(fallback.toString());
-                return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
-            }
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+        } catch (Exception e) {
+            log.info(e.toString());
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
+        }
+
+        try {
+            return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav"))
+                    .body(chatService.convert(speech, partner));
+        } catch (Exception e) {
+            // Voice conversion is the fragile half, and it is also the optional one: an unconfigured
+            // STS_URL arrives here as a ServiceUnavailableException and is meant to. Losing the
+            // character's voice is a much smaller loss than losing the voice, so what goes back is
+            // the speech we already have — still at the character's own pace and in their own voice,
+            // which is the part of them that survives without conversion.
+            //
+            // Nothing is re-synthesized. `speech` is fully buffered, so handing it to the response
+            // after conversion has read it costs one more pass over a byte array and not one more
+            // request to a paid API.
+            log.info(e.toString());
+            return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav")).body(speech);
         }
     }
 

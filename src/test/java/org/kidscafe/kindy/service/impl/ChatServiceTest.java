@@ -6,6 +6,7 @@ import org.kidscafe.kindy.service.ServiceUnavailableException;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -20,7 +21,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * completely different places.
  *
  * <p>Nothing here talks to a model, the database or Spring — the decision under test is a pure
- * one, so the service is built with null collaborators the way DiaryServiceTest builds its own.
+ * one, so the service is built with null collaborators the way DiaryServiceTest builds its own. The
+ * fourth of those nulls is the Google token minter, and it carries its own weight: reaching it at
+ * all would be a NullPointerException, so a ServiceUnavailableException below also proves that a
+ * deployment with no speech configured never reads a credential.
  */
 class ChatServiceTest {
     @Test
@@ -59,7 +63,7 @@ class ChatServiceTest {
         // The guard runs ahead of the outbound call rather than inside it. Proven by the client
         // being null: reaching it at all would be a NullPointerException, so a
         // ServiceUnavailableException means nothing was sent and nothing needed to be.
-        ChatService service = new ChatService(null, null, null);
+        ChatService service = new ChatService(null, null, null, null);
 
         assertThrows(ServiceUnavailableException.class, () -> service.transcribe(null));
     }
@@ -68,7 +72,7 @@ class ChatServiceTest {
     void refusesBeforeSendingACompletion() {
         // As above, for the model. It also pins the ordering the API key depends on: the header is
         // only ever attached to a request the URL guard has already allowed.
-        ChatService service = new ChatService(null, null, null);
+        ChatService service = new ChatService(null, null, null, null);
 
         assertThrows(ServiceUnavailableException.class, () -> service.complete(List.of(), "json"));
     }
@@ -93,5 +97,62 @@ class ChatServiceTest {
         // Passing a stray value into `type` would be a 400 from the provider, which is a worse
         // answer to a typo than the one thing it could plausibly have meant.
         assertEquals("json_object", ChatService.responseFormat("json_schema").getType());
+    }
+
+    @Test
+    void readsTheDialectFromConfigurationRatherThanTheUrl() {
+        assertTrue(ChatService.isGoogle("google"));
+        assertTrue(ChatService.isGoogle("  GOOGLE  "));
+
+        assertFalse(ChatService.isGoogle("openai"));
+        assertFalse(ChatService.isGoogle("OpenAI"));
+    }
+
+    @Test
+    void readsAnythingElseAsThePortableDialect() {
+        // Blank is what an unset STT_DIALECT leaves behind, and a typo is a typo. Both mean openai:
+        // a misspelt dialect should degrade to the shape most servers speak rather than take speech
+        // down, and openai is the one that also serves a deployment with no cloud account at all.
+        assertFalse(ChatService.isGoogle(null));
+        assertFalse(ChatService.isGoogle(""));
+        assertFalse(ChatService.isGoogle("   "));
+        assertFalse(ChatService.isGoogle("gooogle"));
+    }
+
+    @Test
+    void fallsBackFromACharactersVoiceToTheSharedOne() {
+        // Mirrors kindy.sts.model.kio: a character's own voice wins, and blank — which is what
+        // `${TTS_VOICE_KIO:}` leaves behind when the variable is unset — means "use the shared one".
+        assertEquals("ko-KR-Neural2-C", ChatService.voice("ko-KR-Neural2-C", "ko-KR-Standard-A"));
+        assertEquals("ko-KR-Standard-A", ChatService.voice("", "ko-KR-Standard-A"));
+        assertEquals("ko-KR-Standard-A", ChatService.voice("   ", "ko-KR-Standard-A"));
+        assertEquals("ko-KR-Standard-A", ChatService.voice(null, "ko-KR-Standard-A"));
+
+        // Null, not "". The name goes into JSON, where an empty string is not "no preference" — it
+        // is a voice name matching nothing, and a 400 on every reply read aloud.
+        assertNull(ChatService.voice(null, ""));
+        assertNull(ChatService.voice("  ", null));
+
+        // Trimmed, for the same reason the model key is: a value pasted out of a console carries
+        // whitespace, and " ko-KR-Standard-A" is not a voice.
+        assertEquals("ko-KR-Standard-A", ChatService.voice(null, " ko-KR-Standard-A\n"));
+    }
+
+    @Test
+    void givesSynthesizedSpeechAFileName() throws Exception {
+        // Invisible until it isn't. Google answers with base64 and nothing else, so the bytes have no
+        // name of their own; Spring's multipart writer omits `filename=` entirely when getFilename()
+        // is null, which is how a nameless octet-stream reaches a voice converter that opens uploads
+        // by extension.
+        ChatService.WavResource speech = new ChatService.WavResource(new byte[]{1, 2, 3});
+
+        assertEquals("speech.wav", speech.getFilename());
+
+        // Re-readable, which is what lets ChatController.speak hand the same audio to conversion and
+        // then to the response without paying for a second synthesis. A streaming resource here
+        // would make the fallback return an empty body.
+        assertEquals(3, speech.contentLength());
+        assertEquals(3, speech.getInputStream().readAllBytes().length);
+        assertEquals(3, speech.getInputStream().readAllBytes().length);
     }
 }

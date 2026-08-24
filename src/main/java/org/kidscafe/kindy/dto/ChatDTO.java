@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import java.util.Base64;
 import java.util.List;
 
 @Getter
@@ -353,5 +354,272 @@ public class ChatDTO {
 
             return response;
         }
+    }
+
+    /**
+     * One request to Cloud Speech-to-Text's synchronous {@code v1/speech:recognize}.
+     *
+     * <p>The recording travels inside the JSON as base64 rather than as a multipart file, which is
+     * the whole of why this class exists: the dialect it sits beside is a whisper.cpp upload —
+     * `file`, `temperature`, `response_format=text`, `language=auto` — and nothing about that shape
+     * survives the move. Note in particular that `auto` does not: {@link RecognitionConfig#languageCode}
+     * is required here and there is no value meaning "work it out".
+     *
+     * <p>60 seconds and 10 MB is the limit of this endpoint. Longer needs
+     * {@code speech:longrunningrecognize} and an object in a bucket, which is a different endpoint, a
+     * poll loop and a piece of infrastructure this application does not have.
+     */
+    @Getter
+    @ToString
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class STTQueryDTO {
+        private RecognitionConfig config;
+        private RecognitionAudio audio;
+
+        @Getter
+        @ToString
+        @AllArgsConstructor
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        public static class RecognitionConfig {
+            /** LINEAR16, a constant in ChatService — it is our half of a two-repo contract. */
+            private String encoding;
+            /** 16000, from the same contract. */
+            private Integer sampleRateHertz;
+            /** Required. There is no "auto" the way the other dialect has one. */
+            private String languageCode;
+            /**
+             * Blank leaves this off and Google uses its default, which is the right default: which
+             * models exist differs by language, so a name ko-KR does not have is a 400 on every
+             * single recording rather than a slightly worse transcript.
+             */
+            private String model;
+            /**
+             * A primitive, so the {@code NON_NULL} above does not suppress it, and always true.
+             *
+             * <p>The transcript is not read by a machine: it becomes a chat bubble and then a turn of
+             * history replayed to the model. An unpunctuated Korean run-on degrades both, and the
+             * flag costs nothing.
+             */
+            private boolean enableAutomaticPunctuation;
+        }
+
+        /**
+         * The recording itself, base64.
+         *
+         * <p>{@code toString} is hand-written and redacts it, which is not tidiness: transcribe logs
+         * its request the way complete does, and twenty seconds of speech is some 850 KB of base64 —
+         * one log line per child per turn, holding the audio of what a child said. The same care
+         * that keeps the model key off {@link LLMQueryDTO}, pointed the other way.
+         */
+        @Getter
+        @AllArgsConstructor
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        public static class RecognitionAudio {
+            private String content;
+
+            @Override
+            public String toString() {
+                return "RecognitionAudio(content="
+                        + (content == null ? "null" : content.length() + " base64 chars") + ")";
+            }
+        }
+    }
+
+    /**
+     * What Cloud Speech-to-Text answers with.
+     *
+     * <p>{@code results} is a <b>list of segments</b>, not one transcript. Google splits a recording
+     * where it hears a pause, and each segment carries its own alternatives — so reading
+     * {@code results[0]}, which is the obvious thing to write, silently returns the first sentence of
+     * what a child said and drops the rest. {@link #transcript()} exists so that mistake cannot be
+     * made twice.
+     *
+     * <p>And it is <b>absent</b> for silence: a recording of nothing comes back as <code>{}</code>.
+     * That is not an error and must not become one — the child pressed the button and said nothing,
+     * and the answer to that is to ask again, not to fail.
+     */
+    @Getter
+    @Setter
+    @ToString
+    @NoArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class STTResponseDTO {
+        @Getter
+        @Setter
+        @ToString
+        @NoArgsConstructor
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public static class Alternative {
+            private String transcript;
+            private Double confidence;
+        }
+
+        @Getter
+        @Setter
+        @ToString
+        @NoArgsConstructor
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        public static class Result {
+            /** Best first. We take one — there is nowhere in this application to show a second. */
+            private List<Alternative> alternatives;
+        }
+
+        private List<Result> results;
+
+        /**
+         * Everything that was heard, in order, as one line — or "" when nothing was.
+         *
+         * <p>Each segment is trimmed before joining and the segments are rejoined with a single
+         * space: Google leads continuation segments with a space of its own, so pasting the raw
+         * strings together yields double spaces, and dropping the space entirely runs the last word
+         * of one sentence into the first of the next.
+         */
+        public String transcript() {
+            if (results == null || results.isEmpty()) return "";
+
+            StringBuilder joined = new StringBuilder();
+            for (Result result : results) {
+                if (result == null || result.getAlternatives() == null || result.getAlternatives().isEmpty()) continue;
+
+                Alternative best = result.getAlternatives().get(0);
+                if (best == null || best.getTranscript() == null) continue;
+
+                String text = best.getTranscript().trim();
+                if (text.isEmpty()) continue;
+
+                if (!joined.isEmpty()) joined.append(' ');
+                joined.append(text);
+            }
+
+            return joined.toString();
+        }
+    }
+
+    /**
+     * One request to Cloud Text-to-Speech's {@code v1/text:synthesize}.
+     *
+     * <p>Three members are conspicuously absent, and each absence is a decision:
+     * <ul>
+     *   <li>{@code audioConfig.pitch} — a character's pitch belongs to voice conversion and only
+     *       there. Sent here as well it would be applied twice on the path children actually hear
+     *       (Google's semitones, then the converter's), and the answer would be a chipmunk.</li>
+     *   <li>{@code voice.ssmlGender} — meaningless once {@code name} is given, and a contradiction
+     *       between the two is a 400.</li>
+     *   <li>{@code audioConfig.sampleRateHertz} — left off, the voice is rendered at its own rate,
+     *       which is the best it sounds. LINEAR16 carries a WAV header, so everything downstream
+     *       reads the rate out of the file rather than being told it.</li>
+     * </ul>
+     */
+    @Getter
+    @ToString
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class TTSQueryDTO {
+        private Input input;
+        private Voice voice;
+        private AudioConfig audioConfig;
+
+        @Getter
+        @ToString
+        @AllArgsConstructor
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        public static class Input {
+            /** Plain text, never `ssml`: this reads back a model's prose, which is not markup. */
+            private String text;
+        }
+
+        @Getter
+        @ToString
+        @AllArgsConstructor
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        public static class Voice {
+            private String languageCode;
+            /**
+             * Null leaves the member off and Google picks the default voice for the language. That
+             * works, and is not promised to keep picking the same one — a child's partner quietly
+             * changing voice after a Google release is the kind of thing nobody files a bug about
+             * and everybody notices. Name one per deployment.
+             */
+            private String name;
+        }
+
+        @Getter
+        @ToString
+        @AllArgsConstructor
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        public static class AudioConfig {
+            /** LINEAR16 — a WAV with a header on it, which is what everything downstream expects. */
+            private String audioEncoding;
+            /**
+             * A primitive, like {@code stream} on {@link LLMQueryDTO}, so it is always written: 1.0
+             * is Google's default anyway, and saying it out loud is what makes the two characters'
+             * 1.05 and 0.95 legible in a log beside it.
+             */
+            private double speakingRate;
+        }
+    }
+
+    /**
+     * What Cloud Text-to-Speech answers with: the whole audio file, base64, in a JSON member.
+     *
+     * <p>{@code toString} redacts it for the same reason {@link STTQueryDTO.RecognitionAudio} does.
+     */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class TTSResponseDTO {
+        private String audioContent;
+
+        /** The bytes, or null if the server answered with no audio in it. */
+        public byte[] audio() {
+            if (audioContent == null || audioContent.isBlank()) return null;
+
+            // The MIME decoder rather than the basic one: it skips whitespace instead of throwing on
+            // it, and a decoder that threw here would surface as a voice that failed rather than as
+            // the formatting detail it is.
+            return Base64.getMimeDecoder().decode(audioContent);
+        }
+
+        @Override
+        public String toString() {
+            return "TTSResponseDTO(audioContent="
+                    + (audioContent == null ? "null" : audioContent.length() + " base64 chars") + ")";
+        }
+    }
+
+    /**
+     * One request to an OpenAI-dialect {@code /v1/audio/speech}.
+     *
+     * <p>The portable half of synthesis, and the reason the TTS dialect is named `openai` rather than
+     * after any one server: OpenAI itself, openedai-speech, Kokoro-FastAPI and Speaches all read
+     * this body. What it replaced — MeloTTS's own {@code {text, language, speaker, speed}} — was a
+     * shape exactly one project spoke, so a deployment wanting MeloTTS now puts a small adapter in
+     * front of it and keeps every other server as an option.
+     *
+     * <p>Unlike Google's, the answer to this is the audio itself rather than base64 inside JSON,
+     * which is why there is no response type beside this one.
+     */
+    @Getter
+    @ToString
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class SpeechQueryDTO {
+        /** Blank leaves it off, for a local server that serves one model and names none. */
+        private String model;
+        /** The text. OpenAI calls this `input`; Google calls the same thing `input.text`. */
+        private String input;
+        private String voice;
+        /**
+         * Always "wav". Pinned to three other things — `produces = "audio/wav"` on both controller
+         * endpoints, the .wav name on the part handed to voice conversion, and the converter itself
+         * — so moving it means moving all four together. The default is mp3, which would make the
+         * declared content type a lie.
+         */
+        @JsonProperty("response_format")
+        private String responseFormat;
+        /** OpenAI's word for what Google calls speakingRate, on the same scale. */
+        private double speed;
     }
 }

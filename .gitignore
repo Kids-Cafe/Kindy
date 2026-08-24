@@ -38,3 +38,11 @@ out/
 
 ### Photos stored locally, when no S3 bucket is configured ###
 data/
+
+### Google Cloud service-account keys ###
+# A service-account key is a spendable credential — an hour of an account, re-mintable forever.
+# Named broadly on purpose: the mistake is rarely committing the file you meant to keep, it is
+# committing the copy you made to test something.
+*-sa.json
+google-credentials.json
+application_default_credentials.json

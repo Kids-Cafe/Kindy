@@ -23,6 +23,31 @@ repositories {
 // and which one wins becomes a resolution-order question nobody should have to think about.
 def awsSdkVersion = '2.54.2'
 
+// The credential half of Google Cloud Speech-to-Text and Text-to-Speech, and only the credential
+// half: both are one JSON request each, sent over the RestClient bean this application already has.
+// The single thing actually needed from Google is the one thing that cannot reasonably be
+// hand-written — turning a service-account key into an OAuth2 access token and refreshing it before
+// it expires. Neither API accepts an API key, so there is no simpler version of this; it is the one
+// place the language model's "change three variables, change provider" bargain does not reach.
+//
+// Deliberately NOT google-cloud-speech / google-cloud-texttospeech. Those are full gRPC clients:
+// they bring Netty, protobuf and a BOM of their own, and — exactly as recorded for the AWS SDK
+// above — a second BOM overlapping on io.netty, org.slf4j and org.reactivestreams turns which
+// version wins into a resolution-order question nobody should have to think about.
+//
+// What this coordinate actually drags in, checked rather than assumed
+// (./gradlew dependencies --configuration runtimeClasspath): google-auth-library-credentials,
+// google-http-client(-gson), gson, guava, opencensus-api(+contrib-http-util) and — the one that
+// surprises — io.grpc:grpc-api and grpc-context. Those last two are the pure-Java gRPC interfaces
+// that google-auth uses for its CallCredentials adapter; no transport, no Netty and no protobuf
+// come with them, so the rule this project actually holds to — one HTTP stack in the JAR — is
+// intact. They are NOT excluded: nothing here calls that adapter, but an exclusion that turns out
+// to be wrong fails on the first transcription rather than at build time, which is the worse of the
+// two failures.
+//
+// Pinned rather than managed: Spring Boot's BOM does not know this coordinate either.
+def googleAuthVersion = '1.30.1'
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-restclient'
@@ -37,6 +62,18 @@ dependencies {
         exclude group: 'software.amazon.awssdk', module: 'apache-client'
     }
     implementation "software.amazon.awssdk:url-connection-client:$awsSdkVersion"
+    implementation("com.google.auth:google-auth-library-oauth2-http:$googleAuthVersion") {
+        // The same rule the AWS SDK follows: one HTTP stack in the JAR. google-http-client, which
+        // this drags in, can be backed by Apache HttpClient or by the JDK's own connection
+        // handling, and the JDK one is what GoogleCredentials picks by default — so the Apache jars
+        // are never a code path here, only weight and a second thing to patch.
+        //
+        // Guava and opencensus are NOT excluded and must not be: GoogleCredentials and
+        // google-http-client call into both at runtime, and a JAR that starts and then fails on the
+        // first transcription is worse than one that does not build.
+        exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+        exclude group: 'org.apache.httpcomponents', module: 'httpcore'
+    }
     compileOnly 'org.projectlombok:lombok'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'

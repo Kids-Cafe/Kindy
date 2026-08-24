@@ -48,6 +48,12 @@ public interface IChatService {
     int appendMessage(ChatDTO.MessageDTO pDTO) throws Exception;
     /** Appends, then reads the stored row back so the caller gets the assigned NUM and CREATED_AT. */
     ChatDTO.MessageDTO appendMessageAndRead(ChatDTO.MessageDTO pDTO) throws Exception;
+    /**
+     * What was said in a recording, or "" when nothing was.
+     *
+     * <p>Never null, and silence is not an error: a recording with no speech in it is a child who
+     * pressed the button and said nothing, and the answer to that is to ask again.
+     */
     String transcribe(Resource resource) throws Exception;
     /** An answer from the default partner — for callers that have no character to speak as. */
     ChatDTO.MessageDTO requestMessage(long chatId) throws Exception;
