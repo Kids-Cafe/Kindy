@@ -14,13 +14,19 @@ import java.util.List;
  * <p>
  * A category it has already written it will write again once enough has been said since, which is
  * what keeps a report from freezing at whatever the child had told their partner in their first
- * week. {@code T_CHILD_REPORT.UPDATED_AT} is how far the last write got.
+ * week. {@code T_CHILD_REPORT.CREATED_AT} is how far the last write got.
  * <p>
- * <b>What it cannot do yet:</b> tell a generated report from one a person saved. The diary has
- * {@code SOURCE_AT} for exactly that, and reports have no such column — so a hand-saved report
- * would be overwritten. Nothing saves one today ({@code user/report/save} has no caller), which is
- * the only reason this is survivable; a screen that lets a teacher edit a report needs the column
- * first.
+ * <b>Writing again does not erase.</b> Each write inserts a new row with its own id and leaves every
+ * earlier version in place, so "the child's food report" is the newest of a series rather than a
+ * blob that changes underneath whoever is holding it. That matters off this screen: a chat data card
+ * stores the report id it was sent with, so a card from last March still shows March's numbers
+ * instead of quietly restating itself in today's terms. See docs/migration-report-identity.sql.
+ * <p>
+ * <b>What it still cannot do:</b> tell a generated report from one a person saved. The diary has
+ * {@code SOURCE_AT} for exactly that, and reports have no such column — so a hand-saved report would
+ * be written past. It is no longer destroyed, which makes this survivable rather than merely
+ * unexercised ({@code user/report/save} still has no caller), but a screen that lets a teacher edit
+ * a report needs the column so the overwrite does not happen at all.
  */
 public interface IReportService {
     /**

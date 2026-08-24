@@ -107,6 +107,13 @@ public class ChatDTO {
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class MessageDTO {
+        /**
+         * What kind of message this is: something someone said, or a report card someone pulled in.
+         *
+         * The names do not match {@link ReportDTO.Category} — FRIEND/STUDY here, FRIENDSHIP/LEARNING
+         * there — which is exactly why {@link #category()} exists rather than a
+         * {@code valueOf(type.name())} at each call site.
+         */
         public enum Type {
             TEXT,
             FOOD,
@@ -114,6 +121,20 @@ public class ChatDTO {
             FRIEND,
             PERSONALITY,
             STUDY
+
+            ;
+
+            /** The report category this card shows, or null for TEXT, which shows no report. */
+            public ReportDTO.Category category() {
+                return switch (this) {
+                    case TEXT -> null;
+                    case FOOD -> ReportDTO.Category.FOOD;
+                    case HEALTH -> ReportDTO.Category.HEALTH;
+                    case FRIEND -> ReportDTO.Category.FRIENDSHIP;
+                    case PERSONALITY -> ReportDTO.Category.PERSONALITY;
+                    case STUDY -> ReportDTO.Category.LEARNING;
+                };
+            }
         }
 
         public enum Role {
@@ -148,6 +169,31 @@ public class ChatDTO {
         private String author;
         /** The author's per-kindergarten nickname, falling back to their real name. Read-only. */
         private String authorName;
+        /**
+         * The report this card shows — the exact version, not the category.
+         *
+         * Null for TEXT, which shows no report, and null for cards written before the column existed
+         * whose child could not be established (docs/migration-report-identity.sql PHASE 4).
+         * <p>
+         * This is what makes a card mean the same thing tomorrow. {@link #type} says which of the
+         * five reports it is, but a child's "food report" is a moving target — every regeneration
+         * writes a new one — so a card that stored only the category re-read itself against today's
+         * numbers every time it was rendered, and a conversation from last March came back saying
+         * something nobody had said. An id does not move.
+         * <p>
+         * Like {@code role} and {@code author} it is never a request parameter: {@code chat/send}
+         * takes the child and resolves their current report itself. A caller that could name the id
+         * could pin another child's report into a thread.
+         */
+        private Long reportId;
+        /**
+         * {@link #reportId}'s JSON blob, carried inline so a card paints from the message alone.
+         *
+         * The alternative — the client fetching each id it sees — is a round trip per card and a
+         * second access-gated endpoint to get right, to deliver data the thread's participants can
+         * already read. Read-only, and absent unless this is a card.
+         */
+        private String reportData;
         private Long createdAt;
     }
 

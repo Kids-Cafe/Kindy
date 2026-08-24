@@ -414,12 +414,19 @@ public class UserService implements IUserService {
         return reportMapper.select(pDTO);
     }
 
+    @Override
+    public ReportDTO getReportById(long id) throws Exception {
+        log.info("Calling getReportById");
+
+        return reportMapper.selectById(id);
+    }
+
     @Transactional
     @Override
     public int saveReport(ReportDTO pDTO) throws Exception {
         log.info("Calling saveReport");
 
-        return reportMapper.upsert(pDTO);
+        return reportMapper.insert(pDTO);
     }
 
     @Override

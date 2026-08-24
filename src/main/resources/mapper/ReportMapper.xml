@@ -2,38 +2,62 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTO Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="org.kidscafe.kindy.mapper.IReportMapper">
+    <!--
+        Reports are append-only: one row per version, and the newest row for a (child, category) is
+        that child's current report. Everything here except selectById is therefore a "newest"
+        query, which T_CHILD_REPORT_CURRENT_IX (CHILD_ID, CATEGORY, ID) serves in index order.
+    -->
+
+    <!--
+        The child's current report card — the newest version of each of the five categories.
+
+        The join-on-MAX(ID) is the group-wise-maximum shape rather than a correlated subquery per
+        row: the inner query is one index scan of the child's slice, and it never sees DATA, which
+        is a LONGTEXT and the whole weight of the table.
+    -->
     <select id="selectList" resultType="ReportDTO">
-        SELECT CHILD_ID, CATEGORY, DATA,
-               UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
-        FROM T_CHILD_REPORT
-        WHERE CHILD_ID = #{childId}
+        SELECT R.ID, R.CHILD_ID, R.CATEGORY, R.DATA,
+               UNIX_TIMESTAMP(R.CREATED_AT) * 1000 CREATED_AT
+        FROM T_CHILD_REPORT R
+        JOIN (SELECT CATEGORY, MAX(ID) ID
+              FROM T_CHILD_REPORT
+              WHERE CHILD_ID = #{childId}
+              GROUP BY CATEGORY) L ON L.ID = R.ID
     </select>
 
+    <!-- The current version of one category. What the generator reads to decide whether to write
+         again, and what `chat/send` pins onto a new data card. -->
     <select id="select" resultType="ReportDTO">
-        SELECT CHILD_ID, CATEGORY, DATA,
-               UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT, UNIX_TIMESTAMP(UPDATED_AT) * 1000 UPDATED_AT
+        SELECT ID, CHILD_ID, CATEGORY, DATA,
+               UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
         FROM T_CHILD_REPORT
         WHERE CHILD_ID = #{childId} AND CATEGORY = #{category}
+        ORDER BY ID DESC
+        LIMIT 1
+    </select>
+
+    <!-- One named version, current or not. This is how a data card resolves the report it was sent
+         with, years after that report stopped being the current one. -->
+    <select id="selectById" resultType="ReportDTO">
+        SELECT ID, CHILD_ID, CATEGORY, DATA,
+               UNIX_TIMESTAMP(CREATED_AT) * 1000 CREATED_AT
+        FROM T_CHILD_REPORT
+        WHERE ID = #{id}
     </select>
 
     <!--
-        One row per (child, category); saving the same category again replaces the blob.
+        A new version. Never an update — that is the point of the table.
 
-        UPDATED_AT is set by hand rather than left to ON UPDATE CURRENT_TIMESTAMP, which only fires
-        when a column actually changes. That distinction is invisible until something reads the
-        column: IReportService treats UPDATED_AT as "how far into the child's records this report
-        was written from", so a regeneration that happens to produce byte-identical JSON would
-        leave the timestamp behind the conversation and mark the report stale forever — one model
-        call per category, every time the screen opens, for a report that is already right.
+        This used to be an upsert keyed on (CHILD_ID, CATEGORY), which meant regenerating a category
+        destroyed the previous one. Anything already pointing at it — a data card in a chat thread —
+        silently started showing the new numbers under the old message. See
+        docs/migration-report-identity.sql.
+
+        useGeneratedKeys writes ID back onto the argument, so the caller learns which version it
+        just created without a re-read; ReportService hands that straight back to the client.
     -->
-    <insert id="upsert">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO T_CHILD_REPORT(CHILD_ID, CATEGORY, DATA)
         VALUES (#{childId}, #{category}, #{data})
-        ON DUPLICATE KEY UPDATE DATA = #{data}, UPDATED_AT = CURRENT_TIMESTAMP(3)
     </insert>
-
-    <delete id="delete">
-        DELETE FROM T_CHILD_REPORT
-        WHERE CHILD_ID = #{childId} AND CATEGORY = #{category}
-    </delete>
 </mapper>

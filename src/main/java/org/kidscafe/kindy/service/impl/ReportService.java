@@ -274,9 +274,9 @@ class ReportService implements IReportService {
     private ReportDTO write(String childId, ReportDTO.Category category, Evidence evidence, boolean force)
             throws Exception {
         ReportDTO existing = userService.getReportInfo(childId, category);
-        long updatedAt = existing == null || existing.getUpdatedAt() == null ? 0L : existing.getUpdatedAt();
+        long writtenAt = existing == null || existing.getCreatedAt() == null ? 0L : existing.getCreatedAt();
 
-        if (!force && !isStale(existing, evidence.sourceAt(), evidence.freshAfter(updatedAt))) return null;
+        if (!force && !isStale(existing, evidence.sourceAt(), evidence.freshAfter(writtenAt))) return null;
 
         List<ChatDTO.LLMMessageDTO> query = List.of(
                 new ChatDTO.LLMMessageDTO(ChatDTO.MessageDTO.Role.system.name(), this.systemPrompt(category)),
@@ -304,13 +304,17 @@ class ReportService implements IReportService {
     /**
      * Whether a report has fallen behind the child's records.
      *
-     * Unlike the diary there is no flag for "a person wrote this" — {@code T_CHILD_REPORT} has no
-     * SOURCE_AT — so this cannot protect a hand-saved report, and it does not pretend to. Nothing
-     * saves one today; a screen that lets a teacher edit a report needs that column first.
+     * Unlike the diary there is still no flag for "a person wrote this" — {@code T_CHILD_REPORT} has
+     * no SOURCE_AT — so this cannot tell a hand-saved report from a generated one, and it does not
+     * pretend to. What has changed is the consequence: reports are append-only now, so writing over
+     * a hand-saved report leaves it in the table rather than destroying it. That makes the gap
+     * recoverable instead of fatal, but a screen that lets a teacher edit a report still wants the
+     * column, so that the write does not happen in the first place.
      * <p>
-     * UPDATED_AT is stamped when the report is written, which is after every piece of evidence it
+     * CREATED_AT is stamped when the version is written, which is after every piece of evidence it
      * was written from, so the comparison has none of the round-trip trouble the diary's stored
-     * SOURCE_AT had.
+     * SOURCE_AT had. It is also the only stamp the row has: an immutable row has no update time
+     * (see docs/migration-report-identity.sql PHASE 2).
      * <p>
      * Package-private for {@code ReportServiceTest}: this is what stands between a correct report
      * and five model calls per screen open.
@@ -318,9 +322,9 @@ class ReportService implements IReportService {
     static boolean isStale(ReportDTO existing, long sourceAt, int freshItems) {
         if (existing == null) return true;
 
-        Long updatedAt = existing.getUpdatedAt();
-        if (updatedAt == null) return true;
-        if (sourceAt <= updatedAt) return false;
+        Long writtenAt = existing.getCreatedAt();
+        if (writtenAt == null) return true;
+        if (sourceAt <= writtenAt) return false;
 
         return freshItems >= MIN_NEW_ITEMS;
     }

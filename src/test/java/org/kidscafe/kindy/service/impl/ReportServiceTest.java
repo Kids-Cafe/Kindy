@@ -269,9 +269,9 @@ class ReportServiceTest {
 
     // ---- staleness: when a written category is worth writing again ----
 
-    private static ReportDTO written(Long updatedAt) {
+    private static ReportDTO written(Long createdAt) {
         ReportDTO report = new ReportDTO();
-        report.setUpdatedAt(updatedAt);
+        report.setCreatedAt(createdAt);
         return report;
     }
 

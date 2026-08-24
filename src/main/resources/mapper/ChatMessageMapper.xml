@@ -21,9 +21,27 @@
         ) AUTHOR_NAME
     </sql>
 
+    <!--
+        The report a data card shows, resolved by id rather than by category.
+
+        A card stores the version it was sent with, so this returns what the sender was looking at
+        however long ago that was — the point of the whole thing. Reading the blob here rather than
+        letting the client fetch each id saves a round trip per card and a second access-gated
+        endpoint; the thread's two participants can both read this child's reports already.
+
+        Null for TEXT rows, and for cards too old to have an id (see
+        docs/migration-report-identity.sql PHASE 4). Aliased `M` like the fragment above, and a
+        scalar subquery rather than a join so it cannot multiply rows.
+    -->
+    <sql id="report">
+        M.REPORT_ID,
+        (SELECT R.DATA FROM T_CHILD_REPORT R WHERE R.ID = M.REPORT_ID) REPORT_DATA
+    </sql>
+
     <select id="selectList" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
         SELECT M.CHAT_ID, M.NUM, M.TYPE, M.CONTENT, M.ROLE, M.AUTHOR,
                <include refid="authorName"/>,
+               <include refid="report"/>,
                UNIX_TIMESTAMP(M.CREATED_AT) * 1000 CREATED_AT
         FROM T_CHAT_MESSAGE M
         WHERE M.CHAT_ID = #{id}
@@ -109,6 +127,7 @@
     <select id="selectLast" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
         SELECT M.CHAT_ID, M.NUM, M.TYPE, M.CONTENT, M.ROLE, M.AUTHOR,
                <include refid="authorName"/>,
+               <include refid="report"/>,
                UNIX_TIMESTAMP(M.CREATED_AT) * 1000 CREATED_AT
         FROM T_CHAT_MESSAGE M
         WHERE M.CHAT_ID = #{id}
@@ -119,21 +138,23 @@
     <select id="select" resultType="org.kidscafe.kindy.dto.ChatDTO$MessageDTO">
         SELECT M.CHAT_ID, M.NUM, M.TYPE, M.CONTENT, M.ROLE, M.AUTHOR,
                <include refid="authorName"/>,
+               <include refid="report"/>,
                UNIX_TIMESTAMP(M.CREATED_AT) * 1000 CREATED_AT
         FROM T_CHAT_MESSAGE M
         WHERE M.CHAT_ID = #{chatId} AND M.NUM = #{num}
     </select>
 
-    <!-- AUTHOR is null for anything the model said; only a person's turn carries one. -->
+    <!-- AUTHOR is null for anything the model said; only a person's turn carries one.
+         REPORT_ID is null for anything anyone said; only a data card carries one. -->
     <insert id="insert">
-        INSERT INTO T_CHAT_MESSAGE(CHAT_ID, NUM, TYPE, CONTENT, ROLE, AUTHOR)
-        VALUES (#{chatId}, #{num}, #{type}, #{content}, #{role}, #{author})
+        INSERT INTO T_CHAT_MESSAGE(CHAT_ID, NUM, TYPE, CONTENT, ROLE, AUTHOR, REPORT_ID)
+        VALUES (#{chatId}, #{num}, #{type}, #{content}, #{role}, #{author}, #{reportId})
     </insert>
 
     <!-- Appends with a server-assigned NUM so concurrent senders can't pick the same one. -->
     <insert id="insertNext">
-        INSERT INTO T_CHAT_MESSAGE(CHAT_ID, NUM, TYPE, CONTENT, ROLE, AUTHOR)
-        VALUES (#{chatId}, (SELECT IFNULL(MAX(M.NUM), 0) + 1 FROM T_CHAT_MESSAGE M WHERE M.CHAT_ID = #{chatId}), #{type}, #{content}, #{role}, #{author})
+        INSERT INTO T_CHAT_MESSAGE(CHAT_ID, NUM, TYPE, CONTENT, ROLE, AUTHOR, REPORT_ID)
+        VALUES (#{chatId}, (SELECT IFNULL(MAX(M.NUM), 0) + 1 FROM T_CHAT_MESSAGE M WHERE M.CHAT_ID = #{chatId}), #{type}, #{content}, #{role}, #{author}, #{reportId})
     </insert>
 
     <delete id="delete">

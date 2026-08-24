@@ -59,13 +59,30 @@ public interface IUserService {
     ParentNoteDTO.CommentDTO getParentNoteComment(long id) throws Exception;
     int createParentNoteComment(ParentNoteDTO.CommentDTO pDTO) throws Exception;
     int deleteParentNoteComment(long id) throws Exception;
+    /** The child's current report card: the newest version of each of the five categories. */
     List<ReportDTO> getReports(String childId) throws Exception;
     /**
-     * One category of one child's report, or null if it has never been saved.
+     * The current version of one category of one child's report, or null if it has never been
+     * written.
      *
      * The list above is what a screen asks for; this is what {@link IReportService} asks before it
-     * decides whether that category is worth writing again.
+     * decides whether that category is worth writing again, and what {@code chat/send} pins onto a
+     * new data card.
      */
     ReportDTO getReportInfo(String childId, ReportDTO.Category category) throws Exception;
+    /**
+     * One named version, current or not.
+     *
+     * This is the read that makes a data card mean something years later: the card stores an id, and
+     * the report that id names never changes.
+     */
+    ReportDTO getReportById(long id) throws Exception;
+    /**
+     * Writes a new version of a category, leaving every previous one in place.
+     *
+     * {@code pDTO} comes back carrying the id it was assigned. This does not overwrite: a report
+     * something else already points at cannot be changed out from under it, which is the whole
+     * reason T_CHILD_REPORT has an id at all.
+     */
     int saveReport(ReportDTO pDTO) throws Exception;
 }

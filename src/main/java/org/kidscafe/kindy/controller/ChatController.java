@@ -4,9 +4,11 @@ import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.ChatDTO;
+import org.kidscafe.kindy.dto.ReportDTO;
 import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.service.IAccessService;
 import org.kidscafe.kindy.service.IChatService;
+import org.kidscafe.kindy.service.IUserService;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -23,6 +25,8 @@ import java.util.List;
 public class ChatController {
     private final IChatService chatService;
     private final IAccessService accessService;
+    /** Only for resolving the report a data card pins — see {@link #send}. */
+    private final IUserService userService;
 
     @GetMapping(value = "list")
     public ResultDTO<List<ChatDTO>> list(HttpSession session, @RequestParam long kindergartenId) {
@@ -101,18 +105,24 @@ public class ChatController {
 
     // NUM is assigned by the database, so two senders racing on the same chat can't collide.
     //
-    // ROLE and AUTHOR are deliberately not parameters. Everything a person sends is a `user` turn
-    // by them; `assistant` turns are written only by `request`, from what the model actually
-    // returned, and carry no author. Letting a caller name its own role would let a child put words
-    // in the AI's mouth — and worse, those words would come back as context on the next turn,
-    // steering the model with text it never produced. Letting it name its own author is the same
-    // hole pointed at the other participant: in a two-person chat it would forge their side of the
-    // conversation. Both come from the session instead.
+    // ROLE, AUTHOR and REPORT_ID are deliberately not parameters. Everything a person sends is a
+    // `user` turn by them; `assistant` turns are written only by `request`, from what the model
+    // actually returned, and carry no author. Letting a caller name its own role would let a child
+    // put words in the AI's mouth — and worse, those words would come back as context on the next
+    // turn, steering the model with text it never produced. Letting it name its own author is the
+    // same hole pointed at the other participant: in a two-person chat it would forge their side of
+    // the conversation. And letting it name its own report id would pin some other child's report
+    // into this thread, past the gate below. All three come from the server instead.
+    //
+    // `childId` is required for a data card and ignored for TEXT: a card is about a particular
+    // child, and the chat itself does not record which one — it records a kindergarten and two
+    // people, and a parent may have more than one child enrolled.
     @PostMapping(value = "send")
     public ResultDTO<ChatDTO.MessageDTO> send(HttpSession session,
                                 @RequestParam long chatId,
                                 @RequestParam String content,
-                                @RequestParam(required = false) String type) {
+                                @RequestParam(required = false) String type,
+                                @RequestParam(required = false) String childId) {
         log.info("Calling send");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
@@ -130,6 +140,25 @@ public class ChatController {
             pDTO.setType(type == null ? ChatDTO.MessageDTO.Type.TEXT : ChatDTO.MessageDTO.Type.valueOf(type));
             pDTO.setRole(ChatDTO.MessageDTO.Role.user);
             pDTO.setAuthor(userId);
+
+            ReportDTO.Category category = pDTO.getType().category();
+            if (category != null) {
+                if (childId == null || childId.isBlank()) return ResultDTO.error("MISSING_PARAMETER");
+                // The same gate as `user/report/list`: a card hands the other participant a copy of
+                // this child's report, so the sender has to be someone who may read it.
+                if (!accessService.canViewChild(userId, childId)) return ResultDTO.error("INVALID_ACCESS");
+
+                // Pinned now, at the version the sender is looking at. From here the card is a
+                // statement about a particular report rather than a standing query — regenerating
+                // the category writes a new row and leaves this one, and the message keeps showing
+                // what it showed the day it was sent.
+                ReportDTO report = userService.getReportInfo(childId, category);
+                // Nothing to send. The client generates before inserting a card, so this is the
+                // case where generation produced nothing — too little conversation to report on.
+                if (report == null) return ResultDTO.error("NOT_FOUND");
+
+                pDTO.setReportId(report.getId());
+            }
 
             return ResultDTO.success("SEND_COMPLETE", chatService.appendMessageAndRead(pDTO));
         } catch (IllegalArgumentException e) {
@@ -203,6 +232,12 @@ public class ChatController {
      * conversation. If the model fails after the child's message is stored, that message stays
      * stored and `reply` is null: the child said it, and losing it to retry the model would be
      * worse than answering late.
+     * <p>
+     * TEXT only. A data card is not something anyone said and there is nothing here for the model to
+     * answer, but the real reason for the check is narrower: cards are pinned to a report id by
+     * `send`, and a card written through this path would have none — the drift
+     * docs/migration-report-identity.sql exists to end, let back in through the other door. No
+     * screen sends one; the guard is so that none quietly starts.
      */
     @PostMapping(value = "say")
     public ResultDTO<ChatDTO.TurnDTO> say(HttpSession session,
@@ -226,6 +261,7 @@ public class ChatController {
             pDTO.setChatId(chatId);
             pDTO.setContent(content);
             pDTO.setType(type == null ? ChatDTO.MessageDTO.Type.TEXT : ChatDTO.MessageDTO.Type.valueOf(type));
+            if (pDTO.getType() != ChatDTO.MessageDTO.Type.TEXT) return ResultDTO.error("INVALID_PARAMETER");
             pDTO.setRole(ChatDTO.MessageDTO.Role.user);
             pDTO.setAuthor(userId);
 
