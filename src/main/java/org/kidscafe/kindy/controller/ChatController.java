@@ -9,6 +9,7 @@ import org.kidscafe.kindy.dto.ResultDTO;
 import org.kidscafe.kindy.service.IAccessService;
 import org.kidscafe.kindy.service.IChatService;
 import org.kidscafe.kindy.service.IUserService;
+import org.kidscafe.kindy.service.ServiceUnavailableException;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -190,6 +191,11 @@ public class ChatController {
             String result = chatService.transcribe(file.getResource());
             log.info(result);
             return ResultDTO.success("TRANSCRIPTION_COMPLETE", result == null ? "" : result.trim());
+        } catch (ServiceUnavailableException e) {
+            // No speech service configured at all, which is not the same as one that failed: there
+            // is nothing to retry and nothing the client can send differently.
+            log.info(e.toString());
+            return ResultDTO.error("NOT_AVAILABLE");
         } catch (Exception e) {
             log.info(e.toString());
             return ResultDTO.error("TRANSCRIPTION_FAILED");
@@ -217,6 +223,9 @@ public class ChatController {
             if (reply == null) return ResultDTO.error("GENERATION_FAILED");
 
             return ResultDTO.success("SEND_COMPLETE", reply);
+        } catch (ServiceUnavailableException e) {
+            log.info(e.toString());
+            return ResultDTO.error("NOT_AVAILABLE");
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
@@ -278,6 +287,11 @@ public class ChatController {
             if (reply == null) return ResultDTO.error("GENERATION_FAILED", new ChatDTO.TurnDTO(sent, null));
 
             return ResultDTO.success("SEND_COMPLETE", new ChatDTO.TurnDTO(sent, reply));
+        } catch (ServiceUnavailableException e) {
+            // The turn still carries what was said: the message was stored before the model was
+            // asked, so it must come back either way or the client loses it.
+            log.info(e.toString());
+            return ResultDTO.error("NOT_AVAILABLE", new ChatDTO.TurnDTO(sent, null));
         } catch (Exception e) {
             log.info(e.toString());
             return ResultDTO.error("GENERATION_FAILED", new ChatDTO.TurnDTO(sent, null));
@@ -298,6 +312,10 @@ public class ChatController {
         try {
             Resource audioStream = chatService.synthesize(text);
             return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav")).body(audioStream);
+        } catch (ServiceUnavailableException e) {
+            // 503 rather than the 502 below: nothing upstream failed, because there is no upstream.
+            log.info(e.toString());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
         } catch (Exception e) {
             log.info(e.toString());
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
@@ -329,6 +347,12 @@ public class ChatController {
             try {
                 return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav"))
                         .body(chatService.synthesize(text, partner));
+            } catch (ServiceUnavailableException fallback) {
+                // Reached when synthesis itself is unconfigured. An unconfigured *conversion*
+                // never gets here — it is caught above and falls back to plain synthesis, which is
+                // the whole point of the fallback and still works without STS_URL.
+                log.info(fallback.toString());
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
             } catch (Exception fallback) {
                 log.info(fallback.toString());
                 return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();

@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.dto.ChatDTO;
 import org.kidscafe.kindy.dto.DiaryDTO;
 import org.kidscafe.kindy.service.IChatService;
+import org.kidscafe.kindy.service.ServiceUnavailableException;
 import org.kidscafe.kindy.service.IDiaryService;
 import org.kidscafe.kindy.service.IUserService;
 import org.springframework.beans.factory.annotation.Value;
@@ -128,6 +129,12 @@ class DiaryService implements IDiaryService {
             try {
                 DiaryDTO entry = this.generate(userId, day.getDate(), false);
                 if (entry != null) written.add(entry);
+            } catch (ServiceUnavailableException e) {
+                // Not a bad day — a deployment with no model. Every remaining day would fail the
+                // same way, so there is nothing to salvage by carrying on, and swallowing it would
+                // report GENERATE_COMPLETE with an empty list: indistinguishable from a week with
+                // nothing worth writing about.
+                throw e;
             } catch (Exception e) {
                 log.info("diary generation failed for {} on {}: {}", userId, day.getDate(), e.toString());
             }

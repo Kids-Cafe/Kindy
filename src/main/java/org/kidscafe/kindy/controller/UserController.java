@@ -18,6 +18,7 @@ import org.kidscafe.kindy.service.IKindergartenService;
 import org.kidscafe.kindy.service.IOAuthService;
 import org.kidscafe.kindy.service.IReportService;
 import org.kidscafe.kindy.service.IUserService;
+import org.kidscafe.kindy.service.ServiceUnavailableException;
 import org.kidscafe.kindy.util.EncryptUtil;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.*;
@@ -771,6 +772,11 @@ public class UserController {
             DiaryDTO entry = diaryService.generate(userId, date, force);
 
             return ResultDTO.success("GENERATE_COMPLETE", entry == null ? List.of() : List.of(entry));
+        } catch (ServiceUnavailableException e) {
+            // No model configured, as opposed to one that is down. Both leave the diary unwritten,
+            // but only one of them is worth retrying, and the client cannot tell without this.
+            log.info(e.toString());
+            return ResultDTO.error("NOT_AVAILABLE");
         } catch (Exception e) {
             // The model is an external service that can be slow or down. That is an ordinary
             // failure here, and the client needs to tell it apart from "nothing to write".
@@ -1185,6 +1191,11 @@ public class UserController {
             ReportDTO report = reportService.generate(childId, only, force);
 
             return ResultDTO.success("GENERATE_COMPLETE", report == null ? List.of() : List.of(report));
+        } catch (ServiceUnavailableException e) {
+            // No model configured, as opposed to one that is down. Both leave the report unwritten,
+            // but only one of them is worth retrying, and the client cannot tell without this.
+            log.info(e.toString());
+            return ResultDTO.error("NOT_AVAILABLE");
         } catch (Exception e) {
             // The model is an external service that can be slow or down. That is an ordinary
             // failure here, and the client needs to tell it apart from "nothing to write".

@@ -6,6 +6,7 @@ import org.kidscafe.kindy.dto.ChatDTO;
 import org.kidscafe.kindy.dto.DiaryDTO;
 import org.kidscafe.kindy.dto.ReportDTO;
 import org.kidscafe.kindy.service.IChatService;
+import org.kidscafe.kindy.service.ServiceUnavailableException;
 import org.kidscafe.kindy.service.IReportService;
 import org.kidscafe.kindy.service.IUserService;
 import org.springframework.beans.factory.annotation.Value;
@@ -248,6 +249,10 @@ class ReportService implements IReportService {
             try {
                 ReportDTO report = this.write(childId, category, evidence, force);
                 if (report != null) written.add(report);
+            } catch (ServiceUnavailableException e) {
+                // Not a bad category — a deployment with no model. The other four would fail
+                // identically, and an empty list returned as success reads as "nothing to report".
+                throw e;
             } catch (Exception e) {
                 log.info("report generation failed for {} on {}: {}", childId, category, e.toString());
             }

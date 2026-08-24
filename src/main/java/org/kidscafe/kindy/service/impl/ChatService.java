@@ -6,6 +6,7 @@ import org.kidscafe.kindy.dto.ChatDTO;
 import org.kidscafe.kindy.mapper.IChatMapper;
 import org.kidscafe.kindy.mapper.IChatMessageMapper;
 import org.kidscafe.kindy.service.IChatService;
+import org.kidscafe.kindy.service.ServiceUnavailableException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.dao.DuplicateKeyException;
@@ -52,6 +53,25 @@ class ChatService implements IChatService {
     private final RestClient restClient;
     private final IChatMapper chatMapper;
     private final IChatMessageMapper chatMessageMapper;
+
+    /**
+     * The URL of one of the speech/language services, or a refusal if this deployment has none.
+     *
+     * <p>Every one of them is declared {@code ${VAR:}} in application.properties, so an unset
+     * variable leaves the property blank rather than absent and the application starts regardless.
+     * The cost of that is this check: {@code .uri("")} has no base URL to resolve against and
+     * throws about a URI not being absolute, several frames from anything that names the setting.
+     *
+     * <p>Checked here, at the one point every outbound call passes through, rather than at startup:
+     * a missing model server is not a reason to refuse to boot when the rest of the application —
+     * signing in, classes, photos, notices — works without it.
+     */
+    static String configured(String url, String variable) {
+        if (url == null || url.isBlank())
+            throw new ServiceUnavailableException(variable + " is not configured");
+
+        return url;
+    }
 
     @Override
     public List<ChatDTO> getList(long kindergartenId) throws Exception {
@@ -218,7 +238,9 @@ class ChatService implements IChatService {
         parts.add("task", "transcribe");
         parts.add("language", "auto");
 
-        return restClient.post().uri(STT_URL).body(parts).retrieve().body(String.class);
+        String url = configured(STT_URL, "STT_URL");
+
+        return restClient.post().uri(url).body(parts).retrieve().body(String.class);
     }
 
     /**
@@ -284,7 +306,9 @@ class ChatService implements IChatService {
 
         log.info(qDTO.toString());
 
-        ChatDTO.LLMResponseDTO result = restClient.post().uri(LLM_URL)
+        String url = configured(LLM_URL, "LLM_URL");
+
+        ChatDTO.LLMResponseDTO result = restClient.post().uri(url)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(qDTO).retrieve().body(ChatDTO.LLMResponseDTO.class);
 
@@ -363,7 +387,9 @@ class ChatService implements IChatService {
         // without a character. It keeps the neutral speed the endpoint has always used.
         double speed = partner == null ? 1.0 : partner.getSpeed();
 
-        return restClient.post().uri(TTS_URL).contentType(MediaType.APPLICATION_JSON).body(Map.of(
+        String url = configured(TTS_URL, "TTS_URL");
+
+        return restClient.post().uri(url).contentType(MediaType.APPLICATION_JSON).body(Map.of(
                 "text", text,
                 "language", "KR",
                 "speaker", "KR",
@@ -403,6 +429,8 @@ class ChatService implements IChatService {
         parts.add("model_name", this.voiceModel(partner));
         parts.add("pitch_shift", pitchShift);
 
-        return restClient.post().uri(STS_URL).contentType(MediaType.MULTIPART_FORM_DATA).body(parts).retrieve().body(Resource.class);
+        String url = configured(STS_URL, "STS_URL");
+
+        return restClient.post().uri(url).contentType(MediaType.MULTIPART_FORM_DATA).body(parts).retrieve().body(Resource.class);
     }
 }
