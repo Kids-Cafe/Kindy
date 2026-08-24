@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
@@ -30,6 +31,19 @@ class ChatService implements IChatService {
     private String LLM_URL;
     @Value("${kindy.llm.model}")
     private String LLM_MODEL;
+    /**
+     * The bearer token for the model endpoint — Gemini's or OpenAI's key, blank for a local Ollama.
+     *
+     * <p>Blank does not mean "not configured" the way a blank URL does: whether a key is wanted is
+     * the endpoint's business, not ours, so there is no NOT_AVAILABLE for the absence of one. What
+     * blank means here is that no Authorization header is sent at all.
+     *
+     * <p>A {@code @Value} field rather than a constructor argument on purpose: {@link ChatService}
+     * is built with null collaborators in its test to ask questions that never reach the network,
+     * and one more constructor parameter is one more null every such test has to carry.
+     */
+    @Value("${kindy.llm.key:}")
+    private String LLM_KEY;
     @Value("${kindy.llm.prompt:}")
     private String LLM_PROMPT;
     @Value("${kindy.tts.url}")
@@ -300,17 +314,77 @@ class ChatService implements IChatService {
         return chatMessageMapper.selectPartnerDay(userId, date);
     }
 
+    /**
+     * The `response_format` a caller's {@code format} setting asks for, or null for ordinary prose.
+     *
+     * <p>{@code kindy.llm.diary.format} and {@code kindy.llm.report.format} hold Ollama's word for
+     * this, "json". They stay as they are and {@link #complete} keeps its signature — this is where
+     * that word becomes the member Gemini, OpenAI and Ollama's /v1 endpoint all understand. Blank
+     * still means "leave the member off entirely", which is how a deployment turns structured
+     * output off for a server that does not implement it.
+     *
+     * <p>Anything else non-blank is read as "yes, JSON" rather than forwarded into {@code type}:
+     * `json_object` is the only mode all three implement, and passing a stray value through would
+     * be a 400 — a worse answer to a typo than doing the one thing it could have meant. Nothing is
+     * lost by being generous, because the answer is pulled out with extractJson either way.
+     */
+    static ChatDTO.LLMQueryDTO.ResponseFormat responseFormat(String format) {
+        if (format == null || format.isBlank()) return null;
+
+        String value = format.trim();
+        if (!value.equalsIgnoreCase("json") && !value.equalsIgnoreCase("json_object")) {
+            log.info("unrecognised LLM format {}, asking for json_object", value);
+        }
+
+        return ChatDTO.LLMQueryDTO.ResponseFormat.JSON_OBJECT;
+    }
+
     @Override
     public String complete(List<ChatDTO.LLMMessageDTO> messages, String format) throws Exception {
-        ChatDTO.LLMQueryDTO qDTO = new ChatDTO.LLMQueryDTO(LLM_MODEL, messages, format);
+        ChatDTO.LLMQueryDTO qDTO = new ChatDTO.LLMQueryDTO(LLM_MODEL, messages, responseFormat(format));
 
         log.info(qDTO.toString());
 
         String url = configured(LLM_URL, "LLM_URL");
 
-        ChatDTO.LLMResponseDTO result = restClient.post().uri(url)
+        RestClient.RequestBodySpec request = restClient.post().uri(url)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(qDTO).retrieve().body(ChatDTO.LLMResponseDTO.class);
+                .accept(MediaType.APPLICATION_JSON);
+
+        // On the request, never on the RestClient bean. OAuthService is handed the same bean, so a
+        // default Authorization header would send the model key to Kakao, Naver and Google as well
+        // — and the key is deliberately not a member of LLMQueryDTO either, which is logged above.
+        //
+        // Blank means no header rather than an empty `Bearer `: a local Ollama has no notion of a
+        // key, and a malformed credential is refused where an absent one is served. The trim is not
+        // cosmetic — a key pasted out of a console carries a trailing newline, and `Bearer …\n` is
+        // an invalid header value that fails looking exactly like a wrong key.
+        if (LLM_KEY != null && !LLM_KEY.isBlank()) {
+            request = request.header("Authorization", "Bearer " + LLM_KEY.trim());
+        }
+
+        ChatDTO.LLMResponseDTO result;
+        try {
+            result = request.body(qDTO).retrieve().body(ChatDTO.LLMResponseDTO.class);
+        } catch (HttpClientErrorException e) {
+            // 401 and 403 are the key, not the request: no retry fixes them, no caller could have
+            // asked differently, and the person who has to act is whoever holds the deployment —
+            // which is the same shape of problem as LLM_URL being unset. So it gets the same
+            // answer, and DiaryService.generateAll stops on it rather than spending the rest of the
+            // week's days on an identical refusal and returning an empty success.
+            //
+            // Everything else stays a GENERATION_FAILED worth retrying. 429 above all, which is a
+            // quota saying "later"; and 400, which is a bug in what we sent rather than something a
+            // deployment configured wrongly, and should not read as a feature that was turned off.
+            int status = e.getStatusCode().value();
+            if (status == 401 || status == 403) {
+                log.info("LLM refused our credentials: {} (LLM_API_KEY is {})",
+                        status, (LLM_KEY == null || LLM_KEY.isBlank()) ? "unset" : "set");
+                throw new ServiceUnavailableException("LLM_API_KEY was rejected (" + status + ")");
+            }
+
+            throw e;
+        }
 
         String content = result == null ? null : result.firstContent();
         if (content == null || content.isBlank()) {

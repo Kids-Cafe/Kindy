@@ -3,7 +3,10 @@ package org.kidscafe.kindy.service.impl;
 import org.junit.jupiter.api.Test;
 import org.kidscafe.kindy.service.ServiceUnavailableException;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -59,5 +62,36 @@ class ChatServiceTest {
         ChatService service = new ChatService(null, null, null);
 
         assertThrows(ServiceUnavailableException.class, () -> service.transcribe(null));
+    }
+
+    @Test
+    void refusesBeforeSendingACompletion() {
+        // As above, for the model. It also pins the ordering the API key depends on: the header is
+        // only ever attached to a request the URL guard has already allowed.
+        ChatService service = new ChatService(null, null, null);
+
+        assertThrows(ServiceUnavailableException.class, () -> service.complete(List.of(), "json"));
+    }
+
+    @Test
+    void asksForJsonOnlyWhenAskedTo() {
+        // Blank is how a deployment turns structured output off — LLM_DIARY_FORMAT= — and it has to
+        // leave the member off the request rather than send an empty one.
+        assertNull(ChatService.responseFormat(null));
+        assertNull(ChatService.responseFormat(""));
+        assertNull(ChatService.responseFormat("   "));
+
+        // "json" is Ollama's word for it, kept in the two format properties so that a deployment's
+        // existing configuration goes on meaning what it meant.
+        assertEquals("json_object", ChatService.responseFormat("json").getType());
+        assertEquals("json_object", ChatService.responseFormat(" JSON ").getType());
+        assertEquals("json_object", ChatService.responseFormat("json_object").getType());
+    }
+
+    @Test
+    void readsAnUnknownFormatAsJsonRatherThanForwardingIt() {
+        // Passing a stray value into `type` would be a 400 from the provider, which is a worse
+        // answer to a typo than the one thing it could plausibly have meant.
+        assertEquals("json_object", ChatService.responseFormat("json_schema").getType());
     }
 }

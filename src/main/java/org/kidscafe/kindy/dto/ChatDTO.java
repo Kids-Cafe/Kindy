@@ -2,6 +2,7 @@ package org.kidscafe.kindy.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -226,6 +227,19 @@ public class ChatDTO {
         }
     }
 
+    /**
+     * One request, in the OpenAI chat-completions dialect.
+     *
+     * That dialect is the point. Gemini's `/v1beta/openai/chat/completions`, OpenAI itself and
+     * Ollama's own `/v1/chat/completions` all read this exact body, so choosing a provider is three
+     * environment variables rather than a second code path — and {@link LLMResponseDTO} already
+     * reads back whichever shape they answer in.
+     *
+     * It cost the Ollama-only `format` member, which sat at the top level and means nothing
+     * anywhere else; {@link ResponseFormat} is where that request lives now. A deployment still
+     * running Ollama must therefore point LLM_URL at `/v1/chat/completions` — `/api/chat` speaks
+     * Ollama's own dialect and does not know `response_format`.
+     */
     @Getter
     @ToString
     @AllArgsConstructor
@@ -233,20 +247,45 @@ public class ChatDTO {
     public static class LLMQueryDTO {
         private String model;
         private List<LLMMessageDTO> messages;
+        /**
+         * Always sent, and always false.
+         *
+         * A primitive rather than a Boolean, so the {@code NON_NULL} above does not suppress it. An
+         * omitted `stream` is only ever a server's own default, and a default that turned true
+         * would hand us a chunked body {@link LLMResponseDTO} cannot read.
+         */
         private boolean stream;
         /**
-         * Ollama's structured-output switch ("json"), for callers that need to parse the answer.
+         * The structured-output switch, for the callers that have to parse the answer.
          *
-         * Left null it is not serialized at all, because it is not a member every server knows:
-         * an OpenAI-compatible endpoint rejects the request outright on an unknown field, and the
-         * chat turns must keep working against both. Only the diary sets it.
+         * Left null it is not serialized at all: a chat turn wants prose, and a server that does
+         * not implement the member answers 400 rather than ignoring it. Only the diary and the
+         * report ask for it — see {@code ChatService.responseFormat}, which is where a deployment's
+         * `format` setting becomes one of these.
          */
-        private String format;
-        public LLMQueryDTO(String model, List<LLMMessageDTO> messages) {
-            this(model, messages, false, null);
+        @JsonProperty("response_format")
+        private ResponseFormat responseFormat;
+
+        public LLMQueryDTO(String model, List<LLMMessageDTO> messages, ResponseFormat responseFormat) {
+            this(model, messages, false, responseFormat);
         }
-        public LLMQueryDTO(String model, List<LLMMessageDTO> messages, String format) {
-            this(model, messages, false, format);
+
+        /**
+         * `response_format`. Serializes as {@code {"type": "json_object"}} and nothing else.
+         *
+         * One shared constant, because that is the only value anything here has ever needed.
+         * `json_schema` would mean carrying the diary's and the five reports' schemas in a shape
+         * each provider spells differently, for a guarantee that is checked after the fact anyway:
+         * {@code DiaryService.parse} and {@code ReportService.parse} exist because a small model
+         * gets the shape wrong even when it was told not to.
+         */
+        @Getter
+        @ToString
+        @AllArgsConstructor
+        public static class ResponseFormat {
+            public static final ResponseFormat JSON_OBJECT = new ResponseFormat("json_object");
+
+            private String type;
         }
     }
 

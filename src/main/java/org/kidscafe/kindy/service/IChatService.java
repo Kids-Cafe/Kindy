@@ -37,8 +37,10 @@ public interface IChatService {
      * One completion against the configured model, for callers that are not a chat turn.
      *
      * Returns the assistant's text, or null when the server answered in a shape we don't know or
-     * with nothing in it. {@code format} is Ollama's structured-output switch — pass "json" to ask
-     * for parseable output, or null to leave the field off the request entirely.
+     * with nothing in it. {@code format} is the structured-output switch — any non-blank value
+     * ("json", as the two format properties spell it) asks the server for
+     * {@code response_format: {"type":"json_object"}}, and null leaves the member off the request
+     * entirely, which is what a chat turn wants.
      */
     String complete(List<ChatDTO.LLMMessageDTO> messages, String format) throws Exception;
     int addMessage(ChatDTO.MessageDTO pDTO) throws Exception;
