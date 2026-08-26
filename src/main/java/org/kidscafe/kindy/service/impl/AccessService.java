@@ -35,7 +35,7 @@ public class AccessService implements IAccessService {
         try {
             return relationshipMapper.getInfo(RelationshipDTO.fromId(kindergartenId, userId));
         } catch (Exception e) {
-            log.info("getMembership failed: {}", e.toString());
+            log.warn("getMembership failed — denying", e);
             return null;
         }
     }
@@ -48,7 +48,7 @@ public class AccessService implements IAccessService {
             KindergartenDTO kindergarten = kindergartenMapper.getInfo(KindergartenDTO.fromId(kindergartenId));
             return kindergarten != null && userId.equals(kindergarten.getOwner());
         } catch (Exception e) {
-            log.info("isOwner failed: {}", e.toString());
+            log.warn("isOwner failed — denying", e);
             return false;
         }
     }
@@ -90,7 +90,7 @@ public class AccessService implements IAccessService {
             }
             return result;
         } catch (Exception e) {
-            log.info("getPermissions failed: {}", e.toString());
+            log.warn("getPermissions({}, {}) failed — denying", kindergartenId, userId, e);
             return EnumSet.noneOf(RoleDTO.Permission.class);
         }
     }
@@ -120,7 +120,7 @@ public class AccessService implements IAccessService {
             role = roleMapper.getInfo(role);
             return role == null ? null : role.getKindergartenId();
         } catch (Exception e) {
-            log.info("getKindergartenOfRole failed: {}", e.toString());
+            log.warn("getKindergartenOfRole failed — denying", e);
             return null;
         }
     }
@@ -133,7 +133,7 @@ public class AccessService implements IAccessService {
             ClassDTO rDTO = classMapper.select(pDTO);
             return rDTO == null ? null : rDTO.getKindergartenId();
         } catch (Exception e) {
-            log.info("getKindergartenOfClass failed: {}", e.toString());
+            log.warn("getKindergartenOfClass failed — denying", e);
             return null;
         }
     }
@@ -146,7 +146,7 @@ public class AccessService implements IAccessService {
             NoticeDTO rDTO = noticeMapper.getInfo(pDTO);
             return rDTO == null ? null : rDTO.getKindergartenId();
         } catch (Exception e) {
-            log.info("getKindergartenOfNotice failed: {}", e.toString());
+            log.warn("getKindergartenOfNotice failed — denying", e);
             return null;
         }
     }
@@ -159,7 +159,7 @@ public class AccessService implements IAccessService {
             ScheduleDTO rDTO = scheduleMapper.select(pDTO);
             return rDTO == null ? null : rDTO.getKindergartenId();
         } catch (Exception e) {
-            log.info("getKindergartenOfSchedule failed: {}", e.toString());
+            log.warn("getKindergartenOfSchedule failed — denying", e);
             return null;
         }
     }
@@ -172,7 +172,7 @@ public class AccessService implements IAccessService {
             SupplyDTO rDTO = supplyMapper.select(pDTO);
             return rDTO == null ? null : rDTO.getClassId();
         } catch (Exception e) {
-            log.info("getClassOfSupply failed: {}", e.toString());
+            log.warn("getClassOfSupply failed — denying", e);
             return null;
         }
     }
@@ -185,7 +185,7 @@ public class AccessService implements IAccessService {
             PhotoDTO rDTO = photoMapper.select(pDTO);
             return rDTO == null ? null : rDTO.getClassId();
         } catch (Exception e) {
-            log.info("getClassOfPhoto failed: {}", e.toString());
+            log.warn("getClassOfPhoto failed — denying", e);
             return null;
         }
     }
@@ -198,7 +198,7 @@ public class AccessService implements IAccessService {
             SupplyDTO.CommentDTO rDTO = supplyCommentMapper.select(pDTO);
             return rDTO == null ? null : rDTO.getSupplyId();
         } catch (Exception e) {
-            log.info("getSupplyOfComment failed: {}", e.toString());
+            log.warn("getSupplyOfComment failed — denying", e);
             return null;
         }
     }
@@ -211,7 +211,7 @@ public class AccessService implements IAccessService {
             ParentNoteDTO rDTO = parentNoteMapper.select(pDTO);
             return rDTO == null ? null : rDTO.getChildId();
         } catch (Exception e) {
-            log.info("getChildOfNote failed: {}", e.toString());
+            log.warn("getChildOfNote failed — denying", e);
             return null;
         }
     }
@@ -224,7 +224,7 @@ public class AccessService implements IAccessService {
             ParentNoteDTO.CommentDTO rDTO = parentNoteMapper.selectComment(pDTO);
             return rDTO == null ? null : rDTO.getNoteId();
         } catch (Exception e) {
-            log.info("getNoteOfComment failed: {}", e.toString());
+            log.warn("getNoteOfComment failed — denying", e);
             return null;
         }
     }
@@ -239,7 +239,7 @@ public class AccessService implements IAccessService {
             pDTO.setChild(childId);
             return familyMapper.select(pDTO) != null;
         } catch (Exception e) {
-            log.info("isParentOf failed: {}", e.toString());
+            log.warn("isParentOf({}, {}) failed — denying", userId, childId, e);
             return false;
         }
     }
@@ -267,7 +267,7 @@ public class AccessService implements IAccessService {
                 if (this.isTeacher(membership.getKindergartenId(), userId)) return true;
             }
         } catch (Exception e) {
-            log.info("canManageChild failed: {}", e.toString());
+            log.warn("canManageChild({}, {}) failed — denying", userId, childId, e);
         }
 
         return false;
@@ -287,7 +287,7 @@ public class AccessService implements IAccessService {
                     .map(FamilyDTO::getChild)
                     .toList();
         } catch (Exception e) {
-            log.info("getChildren failed: {}", e.toString());
+            log.warn("getChildren failed — denying", e);
             return List.of();
         }
     }

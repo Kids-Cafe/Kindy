@@ -80,7 +80,7 @@ public class OAuthController {
     public ResponseEntity<Void> authorize(@PathVariable String provider,
                                           HttpServletRequest request,
                                           HttpSession session) {
-        log.info("Calling oauth authorize: {}", provider);
+        log.debug("Calling oauth authorize: {}", provider);
 
         Provider parsed = parseProvider(provider);
         if (parsed == null || !oauthService.isConfigured(parsed)) return redirectToApp("NOT_AVAILABLE", provider, "/");
@@ -123,7 +123,7 @@ public class OAuthController {
     public ResponseEntity<Void> callback(@PathVariable String provider,
                                          HttpServletRequest request,
                                          HttpSession session) {
-        log.info("Calling oauth callback: {}", provider);
+        log.debug("Calling oauth callback: {}", provider);
 
         // Read everything, then wipe — before any branch can return early. State is single use, so
         // a replayed callback finds nothing and fails closed, and an abandoned attempt leaves
@@ -142,7 +142,7 @@ public class OAuthController {
         String error = request.getParameter("error");
         if (error != null) {
             // The provider's own words about what went wrong. Safe to log; the code is not.
-            log.info("Provider {} refused: error={} description={}",
+            log.debug("Provider {} refused: error={} description={}",
                     provider, error, request.getParameter("error_description"));
             return redirectToApp("OAUTH_FAILED", provider, returnTo);
         }
@@ -168,7 +168,7 @@ public class OAuthController {
                     ? link(identity, session, provider, returnTo)
                     : login(identity, request, session, provider, returnTo);
         } catch (Exception e) {
-            log.info("OAuth callback failed for {}: {}", provider, e.getMessage());
+            log.warn("OAuth callback failed for {}", provider, e);
             return redirectToApp("OAUTH_FAILED", provider, returnTo);
         }
     }
@@ -235,7 +235,7 @@ public class OAuthController {
     /** The providers linked to the signed-in account. */
     @GetMapping(value = "links")
     public ResultDTO<List<OAuthDTO>> links(HttpSession session) {
-        log.info("Calling oauth links");
+        log.debug("Calling oauth links");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -243,7 +243,7 @@ public class OAuthController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", oauthService.getLinksByUser(userId));
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("links failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -257,7 +257,7 @@ public class OAuthController {
      */
     @PostMapping(value = "unlink")
     public ResultDTO<Void> unlink(HttpServletRequest request, HttpSession session) {
-        log.info("Calling oauth unlink");
+        log.debug("Calling oauth unlink");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -269,7 +269,7 @@ public class OAuthController {
             oauthService.deleteLink(parsed, userId);
             return ResultDTO.success("DELETE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("unlink failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }

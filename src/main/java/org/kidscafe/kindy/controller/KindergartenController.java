@@ -27,7 +27,7 @@ public class KindergartenController {
     // (capped) full list, as before.
     @GetMapping(value = "list")
     public ResultDTO<List<KindergartenDTO>> list(HttpServletRequest request) {
-        log.info("Calling list");
+        log.debug("Calling list");
 
         String q = request.getParameter("q");
         if (q != null) {
@@ -38,13 +38,14 @@ public class KindergartenController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getList(q));
         } catch (Exception e) {
+            log.warn("list failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "info")
     public ResultDTO<KindergartenDTO> info(HttpServletRequest request, HttpSession session) {
-        log.info("Calling info");
+        log.debug("Calling info");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -69,6 +70,7 @@ public class KindergartenController {
 
             return ResultDTO.success("QUERY_COMPLETE", rDTO);
         } catch (Exception e) {
+            log.warn("info failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -86,7 +88,7 @@ public class KindergartenController {
     // Returns the created row (with its generated id) so the caller doesn't have to look it up by BRN.
     @PostMapping(value = "create")
     public ResultDTO<KindergartenDTO> create(HttpServletRequest request, HttpSession session) {
-        log.info("Calling create");
+        log.debug("Calling create");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -109,32 +111,33 @@ public class KindergartenController {
         try {
             int res = kindergartenService.create(pDTO);
             if (res == 1) {
+                log.info("Kindergarten created: id={} name={} owner={}", pDTO.getId(), pDTO.getName(), userId);
                 return ResultDTO.success("REGISTER_COMPLETE", pDTO);
             } else {
                 return ResultDTO.error("UNKNOWN_ERROR");
             }
         } catch (DuplicateKeyException e) {
-            log.info("Duplicate BRN: {}", pDTO.getBrn());
+            log.debug("Duplicate BRN: {}", pDTO.getBrn());
             return ResultDTO.error("DUPLICATE_KEY");
         // Enrolling the owner refuses a child account: running a kindergarten is an adult's job.
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("create failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "update")
     public ResultDTO<Void> update() {
-        log.info("Calling update");
+        log.debug("Calling update");
         // TODO: BRN verification
         return ResultDTO.error("NOT_AVAILABLE");
     }
 
     @PostMapping(value = "transfer")
     public ResultDTO<Void> transfer(HttpServletRequest request, HttpSession session) {
-        log.info("Calling transfer");
+        log.debug("Calling transfer");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -156,6 +159,7 @@ public class KindergartenController {
         try {
             int res = kindergartenService.transfer(id, owner);
             if (res == 1) {
+                log.info("Kindergarten {} transferred to {} by {}", id, owner, userId);
                 return ResultDTO.success("TRANSFER_COMPLETE");
             } else {
                 return ResultDTO.error("UNKNOWN_ERROR");
@@ -164,14 +168,14 @@ public class KindergartenController {
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("transfer failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "members")
     public ResultDTO<List<RelationshipDTO>> members(HttpServletRequest request, HttpSession session) {
-        log.info("Calling members");
+        log.debug("Calling members");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -188,13 +192,14 @@ public class KindergartenController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getMembers(id));
         } catch (Exception e) {
+            log.warn("members failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "memberships")
     public ResultDTO<List<RelationshipDTO>> memberships(HttpSession session) {
-        log.info("Calling memberships");
+        log.debug("Calling memberships");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -202,13 +207,14 @@ public class KindergartenController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getMemberships(sessionUserId));
         } catch (Exception e) {
+            log.warn("memberships failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "join")
     public ResultDTO<Void> join(HttpServletRequest request, HttpSession session) {
-        log.info("Calling join");
+        log.debug("Calling join");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -228,11 +234,13 @@ public class KindergartenController {
 
         try {
             kindergartenService.requestJoin(id, sessionUserId, userId, RelationshipDTO.Type.valueOf(type));
+            log.info("Join requested: kindergarten={} user={} by {}", id, userId, sessionUserId);
         } catch (IllegalAccessException e) {
             return ResultDTO.error("INVALID_ACCESS");
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
+            log.warn("join failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
         return ResultDTO.success("JOIN_REQUESTED");
@@ -240,7 +248,7 @@ public class KindergartenController {
 
     @PostMapping(value = "invite")
     public ResultDTO<Void> invite(HttpServletRequest request, HttpSession session) {
-        log.info("Calling invite");
+        log.debug("Calling invite");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -270,9 +278,11 @@ public class KindergartenController {
 
         try {
             kindergartenService.inviteUser(id, sessionUserId, userId, RelationshipDTO.Type.valueOf(type), roleId);
+            log.info("Invite sent: kindergarten={} to={} by={} role={}", id, userId, sessionUserId, roleId);
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
+            log.warn("invite failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
         return ResultDTO.success("INVITE_COMPLETE");
@@ -280,7 +290,7 @@ public class KindergartenController {
 
     @PostMapping(value = "invite/cancel")
     public ResultDTO<Void> cancelInvite(HttpServletRequest request, HttpSession session) {
-        log.info("Calling cancelInvite");
+        log.debug("Calling cancelInvite");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -294,11 +304,13 @@ public class KindergartenController {
 
         try {
             kindergartenService.cancelInvite(id, sessionUserId);
+            log.info("Invite {} cancelled by {}", id, sessionUserId);
         } catch (IllegalAccessException e) {
             return ResultDTO.error("INVALID_ACCESS");
         } catch (IllegalStateException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
+            log.warn("cancelInvite failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
         return ResultDTO.success("CANCEL_COMPLETE");
@@ -306,7 +318,7 @@ public class KindergartenController {
 
     @PostMapping(value = "invite/accept")
     public ResultDTO<Void> acceptInvite(HttpServletRequest request, HttpSession session) {
-        log.info("Calling acceptInvite");
+        log.debug("Calling acceptInvite");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -320,6 +332,7 @@ public class KindergartenController {
 
         try {
             kindergartenService.acceptInvite(id, sessionUserId);
+            log.info("Invite {} accepted by {}", id, sessionUserId);
         } catch (IllegalAccessException e) {
             return ResultDTO.error("INVALID_ACCESS");
         // IllegalStateException: the ticket is gone or already answered.
@@ -328,6 +341,7 @@ public class KindergartenController {
         } catch (IllegalStateException | IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
+            log.warn("acceptInvite failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
         return ResultDTO.success("ACCEPT_COMPLETE");
@@ -335,7 +349,7 @@ public class KindergartenController {
 
     @PostMapping(value = "invite/reject")
     public ResultDTO<Void> rejectInvite(HttpServletRequest request, HttpSession session) {
-        log.info("Calling rejectInvite");
+        log.debug("Calling rejectInvite");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -349,11 +363,13 @@ public class KindergartenController {
 
         try {
             kindergartenService.rejectInvite(id, sessionUserId);
+            log.info("Invite {} rejected by {}", id, sessionUserId);
         } catch (IllegalAccessException e) {
             return ResultDTO.error("INVALID_ACCESS");
         } catch (IllegalStateException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
+            log.warn("rejectInvite failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
         return ResultDTO.success("REJECT_COMPLETE");
@@ -361,7 +377,7 @@ public class KindergartenController {
 
     @GetMapping(value = "invite/list")
     public ResultDTO<List<InviteDTO>> inviteList(HttpServletRequest request, HttpSession session) {
-        log.info("Calling inviteList");
+        log.debug("Calling inviteList");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -379,6 +395,7 @@ public class KindergartenController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getInvites(id));
         } catch (Exception e) {
+            log.warn("inviteList failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -386,7 +403,7 @@ public class KindergartenController {
     @PostMapping(value = "add")
     public ResultDTO<Void> add(HttpServletRequest request, HttpSession session) {
         // TODO: Replace this with join() and invite()
-        log.info("Calling add");
+        log.debug("Calling add");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -409,6 +426,7 @@ public class KindergartenController {
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
+            log.warn("add failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
         return ResultDTO.success("ADD_COMPLETE");
@@ -416,7 +434,7 @@ public class KindergartenController {
 
     @PostMapping(value = "assign")
     public ResultDTO<Void> assign(HttpServletRequest request, HttpSession session) {
-        log.info("Calling assign");
+        log.debug("Calling assign");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -444,6 +462,7 @@ public class KindergartenController {
         try {
             kindergartenService.assign(id, userId, roleId);
         } catch (Exception e) {
+            log.warn("assign failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
         return ResultDTO.success("ASSIGN_COMPLETE");
@@ -452,7 +471,7 @@ public class KindergartenController {
     @PostMapping(value = "setNickname")
     public ResultDTO<Void> setNickname(HttpServletRequest request, HttpSession session) {
         // TODO: Replace this with join() and invite()
-        log.info("Calling setNickname");
+        log.debug("Calling setNickname");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -477,6 +496,7 @@ public class KindergartenController {
         try {
             kindergartenService.setNickname(id, userId, nickname);
         } catch (Exception e) {
+            log.warn("setNickname failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
         return ResultDTO.success("UPDATE_COMPLETE");
@@ -488,7 +508,7 @@ public class KindergartenController {
      */
     @PostMapping(value = "setClass")
     public ResultDTO<Void> setClass(HttpServletRequest request, HttpSession session) {
-        log.info("Calling setClass");
+        log.debug("Calling setClass");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -526,7 +546,7 @@ public class KindergartenController {
         try {
             kindergartenService.setClass(id, userId, classId);
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("setClass failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
         return ResultDTO.success("UPDATE_COMPLETE");
@@ -534,7 +554,7 @@ public class KindergartenController {
 
     @PostMapping(value = "remove")
     public ResultDTO<Void> remove(HttpServletRequest request, HttpSession session) {
-        log.info("Calling remove");
+        log.debug("Calling remove");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -557,7 +577,9 @@ public class KindergartenController {
 
         try {
             kindergartenService.remove(id, userId);
+            log.info("Member {} removed from kindergarten {} by {}", userId, id, sessionUserId);
         } catch (Exception e) {
+            log.warn("remove failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
         return ResultDTO.success("REMOVE_COMPLETE");
@@ -565,7 +587,7 @@ public class KindergartenController {
 
     @GetMapping(value = "has")
     public ResultDTO<RelationshipDTO> has(HttpServletRequest request, HttpSession session) {
-        log.info("Calling has");
+        log.debug("Calling has");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -587,13 +609,14 @@ public class KindergartenController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.has(id, userId));
         } catch (Exception e) {
+            log.warn("has failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "role/list")
     public ResultDTO<List<RoleDTO>> roleList(HttpServletRequest request, HttpSession session) {
-        log.info("Calling roleList");
+        log.debug("Calling roleList");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -610,13 +633,14 @@ public class KindergartenController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getRoles(kindergartenId));
         } catch (Exception e) {
+            log.warn("roleList failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "role/create")
     public ResultDTO<Void> createRole(HttpServletRequest request, HttpSession session) {
-        log.info("Calling createRole");
+        log.debug("Calling createRole");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -636,9 +660,11 @@ public class KindergartenController {
 
         try {
             kindergartenService.createRole(kindergartenId, name, color);
+            log.info("Role created in kindergarten {}: {} by {}", kindergartenId, name, sessionUserId);
         } catch (DuplicateKeyException e) {
             return ResultDTO.error("DUPLICATE_KEY");
         } catch (Exception e) {
+            log.warn("createRole failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
         return ResultDTO.success("CREATE_COMPLETE");
@@ -646,7 +672,7 @@ public class KindergartenController {
 
     @PostMapping(value = "role/permissions")
     public ResultDTO<List<RoleDTO.Permission>> rolePermissions(HttpServletRequest request, HttpSession session) {
-        log.info("Calling rolePermissions");
+        log.debug("Calling rolePermissions");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -665,13 +691,14 @@ public class KindergartenController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getRolePermissions(id));
         } catch (Exception e) {
+            log.warn("rolePermissions failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "role/rename")
     public ResultDTO<Void> renameRole(HttpServletRequest request, HttpSession session) {
-        log.info("Calling renameRole");
+        log.debug("Calling renameRole");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -694,15 +721,17 @@ public class KindergartenController {
 
         try {
             kindergartenService.renameRole(id, name, color);
+            log.info("Role {} renamed to {} by {}", id, name, sessionUserId);
             return ResultDTO.success("UPDATE_COMPLETE");
         } catch (Exception e) {
+            log.warn("renameRole failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "role/delete")
     public ResultDTO<Void> deleteRole(HttpServletRequest request, HttpSession session) {
-        log.info("Calling deleteRole");
+        log.debug("Calling deleteRole");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -721,8 +750,10 @@ public class KindergartenController {
 
         try {
             kindergartenService.deleteRole(id);
+            log.info("Role {} deleted by {}", id, sessionUserId);
             return ResultDTO.success("DELETE_COMPLETE");
         } catch (Exception e) {
+            log.warn("deleteRole failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -731,7 +762,7 @@ public class KindergartenController {
     // the member's role set — a member may hold several roles at once.
     @PostMapping(value = "role/assign")
     public ResultDTO<Void> assignRole(HttpServletRequest request, HttpSession session) {
-        log.info("Calling assignRole");
+        log.debug("Calling assignRole");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -753,16 +784,17 @@ public class KindergartenController {
 
         try {
             kindergartenService.assignRole(id, userId, roleId);
+            log.info("Role {} assigned to {} in kindergarten {} by {}", roleId, userId, id, sessionUserId);
             return ResultDTO.success("ASSIGN_COMPLETE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("assignRole failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "role/unassign")
     public ResultDTO<Void> unassignRole(HttpServletRequest request, HttpSession session) {
-        log.info("Calling unassignRole");
+        log.debug("Calling unassignRole");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -782,16 +814,17 @@ public class KindergartenController {
 
         try {
             kindergartenService.unassignRole(id, userId, roleId);
+            log.info("Role {} unassigned from {} in kindergarten {} by {}", roleId, userId, id, sessionUserId);
             return ResultDTO.success("UNASSIGN_COMPLETE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("unassignRole failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "role/permission/add")
     public ResultDTO<Void> addRolePermission(HttpServletRequest request, HttpSession session) {
-        log.info("Calling addRolePermission");
+        log.debug("Calling addRolePermission");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -812,20 +845,21 @@ public class KindergartenController {
         try {
             RoleDTO.Permission permission = RoleDTO.Permission.valueOf(request.getParameter("permission"));
             kindergartenService.addRolePermission(id, permission);
+            log.info("Permission {} added to role {} by {}", permission, id, sessionUserId);
             return ResultDTO.success("ADD_COMPLETE");
         } catch (IllegalArgumentException | NullPointerException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (DuplicateKeyException e) {
             return ResultDTO.error("DUPLICATE_KEY");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("addRolePermission failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "role/permission/remove")
     public ResultDTO<Void> removeRolePermission(HttpServletRequest request, HttpSession session) {
-        log.info("Calling removeRolePermission");
+        log.debug("Calling removeRolePermission");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -844,18 +878,19 @@ public class KindergartenController {
         try {
             RoleDTO.Permission permission = RoleDTO.Permission.valueOf(request.getParameter("permission"));
             kindergartenService.removeRolePermission(id, permission);
+            log.info("Permission {} removed from role {} by {}", permission, id, sessionUserId);
             return ResultDTO.success("REMOVE_COMPLETE");
         } catch (IllegalArgumentException | NullPointerException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("removeRolePermission failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "notice/list")
     public ResultDTO<List<NoticeDTO>> noticeList(HttpServletRequest request, HttpSession session) throws Exception {
-        log.info("Calling noticeList");
+        log.debug("Calling noticeList");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -874,7 +909,7 @@ public class KindergartenController {
 
     @GetMapping(value = "notice/info")
     public ResultDTO<NoticeDTO> noticeInfo(HttpServletRequest request, HttpSession session) throws Exception {
-        log.info("Calling noticeInfo");
+        log.debug("Calling noticeInfo");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -900,7 +935,7 @@ public class KindergartenController {
 
     @PostMapping(value = "notice/create")
     public ResultDTO<Void> createNotice(HttpServletRequest request, HttpSession session) {
-        log.info("Calling createNotice");
+        log.debug("Calling createNotice");
 
         try {
             String userId = (String) session.getAttribute("SESSION_USER_ID");
@@ -923,20 +958,21 @@ public class KindergartenController {
             pDTO.setPinned(Boolean.parseBoolean(request.getParameter("pinned")));
             pDTO.setBannerEnabled(Boolean.parseBoolean(request.getParameter("bannerEnabled")));
             pDTO.setContent(request.getParameter("content"));
-            log.info(pDTO.toString());
+            log.debug("Notice for kindergarten {} by {}: {} chars", kindergartenId, userId,
+                    pDTO.getContent() == null ? 0 : pDTO.getContent().length());
 
             kindergartenService.createNotice(pDTO);
 
             return ResultDTO.success("REGISTER_COMPLETE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("createNotice failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "notice/edit")
     public ResultDTO<Void> editNotice(HttpServletRequest request, HttpSession session) {
-        log.info("Calling editNotice");
+        log.debug("Calling editNotice");
 
         try {
             String userId = (String) session.getAttribute("SESSION_USER_ID");
@@ -965,20 +1001,21 @@ public class KindergartenController {
             pDTO.setPinned(Boolean.parseBoolean(request.getParameter("pinned")));
             pDTO.setBannerEnabled(Boolean.parseBoolean(request.getParameter("bannerEnabled")));
             pDTO.setContent(request.getParameter("content"));
-            log.info(pDTO.toString());
+            log.debug("Notice {} in kindergarten {}: {} chars", pDTO.getNum(), kindergartenId,
+                    pDTO.getContent() == null ? 0 : pDTO.getContent().length());
 
             kindergartenService.updateNotice(pDTO);
 
             return ResultDTO.success("EDIT_COMPLETE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("editNotice failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "notice/delete")
     public ResultDTO<Void> deleteNotice(HttpServletRequest request, HttpSession session) {
-        log.info("Calling deleteNotice");
+        log.debug("Calling deleteNotice");
 
         try {
             String userId = (String) session.getAttribute("SESSION_USER_ID");
@@ -1004,14 +1041,14 @@ public class KindergartenController {
 
             return ResultDTO.success("DELETE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("deleteNotice failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "schedule/list")
     public ResultDTO<List<ScheduleDTO>> scheduleList(HttpServletRequest request, HttpSession session) {
-        log.info("Calling scheduleList");
+        log.debug("Calling scheduleList");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1028,13 +1065,14 @@ public class KindergartenController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getSchedules(kindergartenId));
         } catch (Exception e) {
+            log.warn("scheduleList failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "schedule/info")
     public ResultDTO<ScheduleDTO> getScheduleInfo(HttpServletRequest request, HttpSession session) {
-        log.info("Calling getSchedule");
+        log.debug("Calling getSchedule");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1053,13 +1091,14 @@ public class KindergartenController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getScheduleInfo(id));
         } catch (Exception e) {
+            log.warn("getScheduleInfo failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "schedule/create")
     public ResultDTO<Void> createSchedule(HttpServletRequest request, HttpSession session) {
-        log.info("Calling createSchedule");
+        log.debug("Calling createSchedule");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1095,13 +1134,14 @@ public class KindergartenController {
             kindergartenService.createSchedule(pDTO);
             return ResultDTO.success("CREATE_COMPLETE");
         } catch (Exception e) {
+            log.warn("createSchedule failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "schedule/edit")
     public ResultDTO<Void> editSchedule(HttpServletRequest request, HttpSession session) {
-        log.info("Calling editSchedule");
+        log.debug("Calling editSchedule");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1139,13 +1179,14 @@ public class KindergartenController {
             kindergartenService.updateSchedule(pDTO);
             return ResultDTO.success("UPDATE_COMPLETE");
         } catch (Exception e) {
+            log.warn("editSchedule failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "schedule/delete")
     public ResultDTO<Void> deleteSchedule(HttpServletRequest request, HttpSession session) {
-        log.info("Calling deleteSchedule");
+        log.debug("Calling deleteSchedule");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1166,6 +1207,7 @@ public class KindergartenController {
             kindergartenService.deleteSchedule(id);
             return ResultDTO.success("DELETE_COMPLETE");
         } catch (Exception e) {
+            log.warn("deleteSchedule failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }

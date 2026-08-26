@@ -73,7 +73,7 @@ public final class Thumbnailer {
             return new Result(out.toByteArray(), resultType);
         } catch (Exception e) {
             // Never fatal to the upload. The photo itself is already fine.
-            log.info("Could not make a thumbnail: {}", e.toString());
+            log.warn("Could not make a thumbnail", e);
             return null;
         }
     }

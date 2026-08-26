@@ -91,7 +91,7 @@ public class CsrfFilter extends OncePerRequestFilter {
             return;
         }
 
-        log.info("Rejected cross-origin {} {} from origin={} referer={}",
+        log.warn("Rejected cross-origin {} {} from origin={} referer={}",
                 request.getMethod(), request.getRequestURI(),
                 request.getHeader("Origin"), request.getHeader("Referer"));
 

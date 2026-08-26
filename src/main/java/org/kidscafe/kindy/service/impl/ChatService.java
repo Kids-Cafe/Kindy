@@ -157,7 +157,7 @@ class ChatService implements IChatService {
         String value = dialect.trim();
         if (value.equalsIgnoreCase("google")) return true;
         if (!value.equalsIgnoreCase("openai")) {
-            log.info("unrecognised speech dialect {}, reading it as openai", value);
+            log.warn("unrecognised speech dialect {}, reading it as openai", value);
         }
 
         return false;
@@ -247,7 +247,7 @@ class ChatService implements IChatService {
             // a bad encoding, audio over a minute — and must not read as a feature turned off.
             int status = e.getStatusCode().value();
             if (status == 401 || status == 403) {
-                log.info("Google refused our credentials for {}: {} {}", variable, status, e.getResponseBodyAsString());
+                log.warn("Google refused our credentials for {}: {} {}", variable, status, e.getResponseBodyAsString());
                 throw new ServiceUnavailableException(variable + " was refused by Google (" + status + ")");
             }
 
@@ -290,7 +290,7 @@ class ChatService implements IChatService {
 
     @Override
     public List<ChatDTO> getList(long kindergartenId) throws Exception {
-        log.info("Calling getList for {}", kindergartenId);
+        log.debug("Calling getList for {}", kindergartenId);
 
         ChatDTO pDTO = new ChatDTO();
         pDTO.setKindergartenId(kindergartenId);
@@ -300,7 +300,7 @@ class ChatService implements IChatService {
 
     @Override
     public List<ChatDTO> getList(String userId) throws Exception {
-        log.info("Calling getList for {}", userId);
+        log.debug("Calling getList for {}", userId);
 
         ChatDTO pDTO = new ChatDTO();
         pDTO.setClient(userId);
@@ -311,7 +311,7 @@ class ChatService implements IChatService {
 
     @Override
     public ChatDTO getInfo(long id) throws Exception {
-        log.info("Calling getInfo");
+        log.debug("Calling getInfo");
 
         ChatDTO pDTO = new ChatDTO();
         pDTO.setId(id);
@@ -321,7 +321,7 @@ class ChatService implements IChatService {
 
     @Override
     public ChatDTO getInfo(long kindergartenId, String host, String client) throws Exception {
-        log.info("Calling getInfo for {} between {} and {}", kindergartenId, host, client);
+        log.debug("Calling getInfo for {} between {} and {}", kindergartenId, host, client);
 
         ChatDTO pDTO = new ChatDTO();
         pDTO.setKindergartenId(kindergartenId);
@@ -333,14 +333,14 @@ class ChatService implements IChatService {
 
     @Override
     public int create(ChatDTO pDTO) throws Exception {
-        log.info("Calling create");
+        log.debug("Calling create");
 
         return chatMapper.insert(pDTO);
     }
 
     @Override
     public ChatDTO ensure(long kindergartenId, String host, String client) throws Exception {
-        log.info("Calling ensure");
+        log.debug("Calling ensure");
 
         ChatDTO existing = this.getInfo(kindergartenId, host, client);
         if (existing != null) return existing;
@@ -357,7 +357,7 @@ class ChatService implements IChatService {
             // Someone opened the same conversation between our SELECT and our INSERT. The unique
             // key on (KINDERGARTEN_ID, HOST, CLIENT) is what makes that a caught error rather than
             // a second thread, so re-read and hand back the row that won.
-            log.info("ensure lost a race, reusing the existing chat");
+            log.debug("ensure lost a race, reusing the existing chat");
             return this.getInfo(kindergartenId, host, client);
         }
     }
@@ -374,7 +374,7 @@ class ChatService implements IChatService {
 
     @Override
     public int delete(long id) throws Exception {
-        log.info("Calling delete");
+        log.debug("Calling delete");
 
         ChatDTO pDTO = new ChatDTO();
         pDTO.setId(id);
@@ -383,7 +383,7 @@ class ChatService implements IChatService {
     }
 
     private List<ChatDTO.MessageDTO> getMessages(ChatDTO.QueryDTO pDTO) throws Exception {
-        log.info("Calling getMessages");
+        log.debug("Calling getMessages");
 
         return chatMessageMapper.selectList(pDTO);
     }
@@ -415,21 +415,21 @@ class ChatService implements IChatService {
 
     @Override
     public int addMessage(ChatDTO.MessageDTO pDTO) throws Exception {
-        log.info("Calling addMessage");
+        log.debug("Calling addMessage");
 
         return chatMessageMapper.insert(pDTO);
     }
 
     @Override
     public int appendMessage(ChatDTO.MessageDTO pDTO) throws Exception {
-        log.info("Calling appendMessage");
+        log.debug("Calling appendMessage");
 
         return chatMessageMapper.insertNext(pDTO);
     }
 
     @Override
     public ChatDTO.MessageDTO appendMessageAndRead(ChatDTO.MessageDTO pDTO) throws Exception {
-        log.info("Calling appendMessageAndRead");
+        log.debug("Calling appendMessageAndRead");
 
         this.appendMessage(pDTO);
 
@@ -444,7 +444,7 @@ class ChatService implements IChatService {
 
     @Override
     public String transcribe(Resource resource) throws Exception {
-        log.info("Calling transcribe");
+        log.debug("Calling transcribe");
 
         // Before anything is read, encoded or minted: a deployment with no speech spends no time and
         // touches no credential.
@@ -499,7 +499,7 @@ class ChatService implements IChatService {
                 new ChatDTO.STTQueryDTO.RecognitionAudio(Base64.getEncoder().encodeToString(audio)));
 
         // The recording is not in this line: RecognitionAudio.toString redacts it.
-        log.info(qDTO.toString());
+        log.debug(qDTO.toString());
 
         ChatDTO.STTResponseDTO result = this.google(url, "STT_URL", qDTO, ChatDTO.STTResponseDTO.class);
 
@@ -550,21 +550,21 @@ class ChatService implements IChatService {
 
     @Override
     public List<ChatDTO.MessageDTO> getRecentMessages(long id, int limit) throws Exception {
-        log.info("Calling getRecentMessages");
+        log.debug("Calling getRecentMessages");
 
         return chatMessageMapper.selectRecent(new ChatDTO.QueryDTO(id, null, null, null, null, limit));
     }
 
     @Override
     public List<ChatDTO.DayDTO> getPartnerDays(String userId) throws Exception {
-        log.info("Calling getPartnerDays for {}", userId);
+        log.debug("Calling getPartnerDays for {}", userId);
 
         return chatMessageMapper.selectPartnerDays(userId);
     }
 
     @Override
     public List<ChatDTO.MessageDTO> getPartnerDay(String userId, String date) throws Exception {
-        log.info("Calling getPartnerDay for {} on {}", userId, date);
+        log.debug("Calling getPartnerDay for {} on {}", userId, date);
 
         return chatMessageMapper.selectPartnerDay(userId, date);
     }
@@ -588,7 +588,7 @@ class ChatService implements IChatService {
 
         String value = format.trim();
         if (!value.equalsIgnoreCase("json") && !value.equalsIgnoreCase("json_object")) {
-            log.info("unrecognised LLM format {}, asking for json_object", value);
+            log.warn("unrecognised LLM format {}, asking for json_object", value);
         }
 
         return ChatDTO.LLMQueryDTO.ResponseFormat.JSON_OBJECT;
@@ -598,7 +598,10 @@ class ChatService implements IChatService {
     public String complete(List<ChatDTO.LLMMessageDTO> messages, String format) throws Exception {
         ChatDTO.LLMQueryDTO qDTO = new ChatDTO.LLMQueryDTO(LLM_MODEL, messages, responseFormat(format));
 
-        log.info(qDTO.toString());
+        // Metadata only. The messages are a child talking to their partner; the log is not
+        // where that conversation belongs, and at 30 turns it would be dumped on every reply.
+        log.debug("LLM request: model={} turns={} format={}", LLM_MODEL,
+                messages == null ? 0 : messages.size(), format == null ? "none" : format);
 
         String url = configured(LLM_URL, "LLM_URL");
 
@@ -633,7 +636,7 @@ class ChatService implements IChatService {
             // deployment configured wrongly, and should not read as a feature that was turned off.
             int status = e.getStatusCode().value();
             if (status == 401 || status == 403) {
-                log.info("LLM refused our credentials: {} (LLM_API_KEY is {})",
+                log.warn("LLM refused our credentials: {} (LLM_API_KEY is {})",
                         status, (LLM_KEY == null || LLM_KEY.isBlank()) ? "unset" : "set");
                 throw new ServiceUnavailableException("LLM_API_KEY was rejected (" + status + ")");
             }
@@ -643,7 +646,7 @@ class ChatService implements IChatService {
 
         String content = result == null ? null : result.firstContent();
         if (content == null || content.isBlank()) {
-            log.info("LLM returned no usable content: {}", result);
+            log.warn("LLM returned no usable content: {}", result);
             return null;
         }
 
@@ -662,7 +665,7 @@ class ChatService implements IChatService {
 
     @Override
     public ChatDTO.MessageDTO requestMessage(long chatId, ChatDTO.Partner partner) throws Exception {
-        log.info("Calling requestMessage as {}", partner);
+        log.debug("Calling requestMessage as {}", partner);
 
         List<ChatDTO.LLMMessageDTO> messages = new ArrayList<>();
         messages.add(new ChatDTO.LLMMessageDTO(ChatDTO.MessageDTO.Role.system.name(), this.systemPrompt(partner)));
@@ -710,7 +713,7 @@ class ChatService implements IChatService {
 
     @Override
     public Resource synthesize(String text, ChatDTO.Partner partner) throws Exception {
-        log.info("Calling synthesize as {}", partner);
+        log.debug("Calling synthesize as {}", partner);
 
         String url = configured(TTS_URL, "TTS_URL");
 
@@ -737,7 +740,9 @@ class ChatService implements IChatService {
                 (TTS_MODEL == null || TTS_MODEL.isBlank()) ? null : TTS_MODEL.trim(),
                 text, this.voiceName(partner), SPEECH_FORMAT, speed);
 
-        log.info(qDTO.toString());
+        // The length, not the words: this is what is about to be read aloud to a child.
+        log.debug("Speech request: model={} voice={} speed={} ({} chars)", TTS_MODEL,
+                this.voiceName(partner), speed, text == null ? 0 : text.length());
 
         RestClient.RequestBodySpec request = restClient.post().uri(url)
                 .contentType(MediaType.APPLICATION_JSON);
@@ -755,7 +760,9 @@ class ChatService implements IChatService {
                 new ChatDTO.TTSQueryDTO.Voice(TTS_LANGUAGE, this.voiceName(partner)),
                 new ChatDTO.TTSQueryDTO.AudioConfig(TTS_ENCODING, speed));
 
-        log.info(qDTO.toString());
+        // As above — the text being spoken stays out of the log.
+        log.debug("Speech request: language={} voice={} rate={} ({} chars)", TTS_LANGUAGE,
+                this.voiceName(partner), speed, text == null ? 0 : text.length());
 
         ChatDTO.TTSResponseDTO result = this.google(url, "TTS_URL", qDTO, ChatDTO.TTSResponseDTO.class);
 
@@ -763,7 +770,7 @@ class ChatService implements IChatService {
         if (audio == null || audio.length == 0) {
             // A 200 with nothing in it. Returning an empty Resource would be worse than failing: the
             // browser gets a zero-byte audio/wav, plays nothing, and reports nothing.
-            log.info("Cloud Text-to-Speech answered with no audio: {}", result);
+            log.warn("Cloud Text-to-Speech answered with no audio: {}", result);
             throw new IllegalStateException("Cloud Text-to-Speech returned no audio");
         }
 
@@ -809,7 +816,7 @@ class ChatService implements IChatService {
 
     @Override
     public Resource convert(Resource resource, ChatDTO.Partner partner) throws Exception {
-        log.info("Calling convert as {}", partner);
+        log.debug("Calling convert as {}", partner);
 
         // 6 is the shift this endpoint used before the characters had voices of their own; it stays
         // the answer for callers that don't name one.

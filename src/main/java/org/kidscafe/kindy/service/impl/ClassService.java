@@ -37,7 +37,7 @@ public class ClassService implements IClassService {
 
     @Override
     public List<ClassDTO> getList(long kindergartenId) throws Exception {
-        log.info("Calling getList");
+        log.debug("Calling getList");
 
         ClassDTO pDTO = new ClassDTO();
         pDTO.setKindergartenId(kindergartenId);
@@ -47,7 +47,7 @@ public class ClassService implements IClassService {
 
     @Override
     public ClassDTO getInfo(long id) throws Exception {
-        log.info("Calling getInfo");
+        log.debug("Calling getInfo");
 
         ClassDTO pDTO = new ClassDTO();
         pDTO.setId(id);
@@ -57,14 +57,14 @@ public class ClassService implements IClassService {
 
     @Override
     public int create(ClassDTO pDTO) throws Exception {
-        log.info("Calling create");
+        log.debug("Calling create");
 
         return classMapper.insert(pDTO);
     }
 
     @Override
     public int updateName(long id, String name) throws Exception {
-        log.info("Calling updateName");
+        log.debug("Calling updateName");
 
         ClassDTO pDTO = new ClassDTO();
         pDTO.setId(id);
@@ -75,7 +75,7 @@ public class ClassService implements IClassService {
 
     @Override
     public int delete(long id) throws Exception {
-        log.info("Calling delete");
+        log.debug("Calling delete");
 
         ClassDTO pDTO = new ClassDTO();
         pDTO.setId(id);
@@ -95,7 +95,7 @@ public class ClassService implements IClassService {
      */
     @Override
     public List<PhotoDTO> getPhotos(long id) throws Exception {
-        log.info("Calling getPhotos");
+        log.debug("Calling getPhotos");
 
         PhotoDTO pDTO = new PhotoDTO();
         pDTO.setClassId(id);
@@ -119,7 +119,7 @@ public class ClassService implements IClassService {
      */
     @Override
     public PhotoDTO getPhotoInfo(long photoId) throws Exception {
-        log.info("Calling getPhotoInfo");
+        log.debug("Calling getPhotoInfo");
 
         PhotoDTO pDTO = new PhotoDTO();
         pDTO.setId(photoId);
@@ -137,7 +137,7 @@ public class ClassService implements IClassService {
      */
     @Override
     public IStorageService.StoredObject openPhoto(PhotoDTO photo, boolean thumbnail) throws Exception {
-        log.info("Calling openPhoto");
+        log.debug("Calling openPhoto");
 
         if (thumbnail) {
             IStorageService.StoredObject thumb = storageService.open(thumbnailKey(photo.getUrl()));
@@ -160,7 +160,7 @@ public class ClassService implements IClassService {
      */
     @Override
     public int addPhoto(PhotoDTO pDTO, byte[] content, ImageType type) throws Exception {
-        log.info("Calling addPhoto");
+        log.debug("Calling addPhoto");
 
         // Nothing the uploader chose appears in the key: a parsed class id, the server clock, a
         // random uuid and an extension from the sniffed bytes. Camera-roll filenames routinely
@@ -179,7 +179,7 @@ public class ClassService implements IClassService {
             try {
                 storageService.put(thumbnailKey(key), thumbnail.type().contentType(), thumbnail.content());
             } catch (Exception e) {
-                log.warn("Stored {} but not its thumbnail: {}", key, e.toString());
+                log.warn("Stored {} but not its thumbnail", key, e);
             }
         }
 
@@ -193,7 +193,7 @@ public class ClassService implements IClassService {
 
     @Override
     public int updatePhoto(PhotoDTO pDTO) throws Exception {
-        log.info("Calling updatePhoto");
+        log.debug("Calling updatePhoto");
 
         return photoMapper.update(pDTO);
     }
@@ -212,7 +212,7 @@ public class ClassService implements IClassService {
      */
     @Override
     public int removePhoto(long photoId) throws Exception {
-        log.info("Calling removePhoto");
+        log.debug("Calling removePhoto");
 
         PhotoDTO pDTO = new PhotoDTO();
         pDTO.setId(photoId);
@@ -234,7 +234,7 @@ public class ClassService implements IClassService {
             storageService.delete(key);
             storageService.delete(thumbnailKey(key));
         } catch (Exception e) {
-            log.warn("Orphaned object {}: {}", key, e.toString());
+            log.warn("Orphaned object {}", key, e);
         }
     }
 
@@ -255,7 +255,7 @@ public class ClassService implements IClassService {
 
     @Override
     public List<SupplyDTO> getSupplies(long id) throws Exception {
-        log.info("Calling getSupplies");
+        log.debug("Calling getSupplies");
 
         SupplyDTO pDTO = new SupplyDTO();
         pDTO.setClassId(id);
@@ -265,7 +265,7 @@ public class ClassService implements IClassService {
 
     @Override
     public SupplyDTO getSupplyInfo(long supplyId) throws Exception {
-        log.info("Calling getSupplyInfo");
+        log.debug("Calling getSupplyInfo");
 
         SupplyDTO pDTO = new SupplyDTO();
         pDTO.setId(supplyId);
@@ -275,21 +275,21 @@ public class ClassService implements IClassService {
 
     @Override
     public int createSupply(SupplyDTO pDTO) throws Exception {
-        log.info("Calling createSupply");
+        log.debug("Calling createSupply");
 
         return supplyMapper.insert(pDTO);
     }
 
     @Override
     public int updateSupply(SupplyDTO pDTO) throws Exception {
-        log.info("Calling updateSupply");
+        log.debug("Calling updateSupply");
 
         return supplyMapper.update(pDTO);
     }
 
     @Override
     public int deleteSupply(long id) throws Exception {
-        log.info("Calling deleteSupply");
+        log.debug("Calling deleteSupply");
 
         SupplyDTO pDTO = new SupplyDTO();
         pDTO.setId(id);
@@ -299,7 +299,7 @@ public class ClassService implements IClassService {
 
     @Override
     public List<SupplyDTO.CommentDTO> getSupplyComments(long supplyId) throws Exception {
-        log.info("Calling getSupplyComments");
+        log.debug("Calling getSupplyComments");
 
         SupplyDTO.CommentDTO pDTO = new SupplyDTO.CommentDTO();
         pDTO.setSupplyId(supplyId);
@@ -309,7 +309,7 @@ public class ClassService implements IClassService {
 
     @Override
     public SupplyDTO.CommentDTO getSupplyComment(long id) throws Exception {
-        log.info("Calling getSupplyComment");
+        log.debug("Calling getSupplyComment");
 
         SupplyDTO.CommentDTO pDTO = new SupplyDTO.CommentDTO();
         pDTO.setId(id);
@@ -319,14 +319,14 @@ public class ClassService implements IClassService {
 
     @Override
     public int createSupplyComment(SupplyDTO.CommentDTO pDTO) throws Exception {
-        log.info("Calling createSupplyComment");
+        log.debug("Calling createSupplyComment");
 
         return supplyCommentMapper.insert(pDTO);
     }
 
     @Override
     public int deleteSupplyComment(long id) throws Exception {
-        log.info("Calling deleteSupplyComment");
+        log.debug("Calling deleteSupplyComment");
 
         SupplyDTO.CommentDTO pDTO = new SupplyDTO.CommentDTO();
         pDTO.setId(id);

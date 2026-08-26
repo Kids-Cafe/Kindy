@@ -31,7 +31,7 @@ public class ChatController {
 
     @GetMapping(value = "list")
     public ResultDTO<List<ChatDTO>> list(HttpSession session, @RequestParam long kindergartenId) {
-        log.info("Calling list");
+        log.debug("Calling list");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -47,14 +47,14 @@ public class ChatController {
             }
             return ResultDTO.success("QUERY_COMPLETE", chatService.getList(userId));
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.error("list failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "info")
     public ResultDTO<ChatDTO> info(HttpSession session, @RequestParam long id) {
-        log.info("Calling info");
+        log.debug("Calling info");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -66,7 +66,7 @@ public class ChatController {
 
             return ResultDTO.success("QUERY_COMPLETE", rDTO);
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.error("info failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -80,7 +80,7 @@ public class ChatController {
                                      @RequestParam long kindergartenId,
                                      @RequestParam(required = false) String host,
                                      @RequestParam(required = false) String client) {
-        log.info("Calling create");
+        log.debug("Calling create");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -99,7 +99,7 @@ public class ChatController {
         try {
             return ResultDTO.success("CREATE_COMPLETE", chatService.ensure(kindergartenId, host, client));
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("create failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -124,7 +124,7 @@ public class ChatController {
                                 @RequestParam String content,
                                 @RequestParam(required = false) String type,
                                 @RequestParam(required = false) String childId) {
-        log.info("Calling send");
+        log.debug("Calling send");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -165,7 +165,7 @@ public class ChatController {
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("send failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -180,7 +180,7 @@ public class ChatController {
     // unparseable response instead of an error it can name.
     public ResultDTO<String> transcribe(HttpSession session,
                                         @RequestParam(value = "file", required = false) MultipartFile file) {
-        log.info("Calling transcribe");
+        log.debug("Calling transcribe");
 
         // Not tied to a chat, but it bills an external API, so it isn't open to anonymous callers.
         String userId = (String) session.getAttribute("SESSION_USER_ID");
@@ -189,15 +189,17 @@ public class ChatController {
 
         try {
             String result = chatService.transcribe(file.getResource());
-            log.info(result);
+            // The length only. This is a child speaking, and what they said belongs in the chat it
+            // was said in, not in a log file that outlives it and is read by people they never met.
+            log.debug("Transcribed {} chars", result == null ? 0 : result.length());
             return ResultDTO.success("TRANSCRIPTION_COMPLETE", result == null ? "" : result.trim());
         } catch (ServiceUnavailableException e) {
             // No speech service configured at all, which is not the same as one that failed: there
             // is nothing to retry and nothing the client can send differently.
-            log.info(e.toString());
+            log.warn("No speech service configured", e);
             return ResultDTO.error("NOT_AVAILABLE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("Transcription failed for {}", userId, e);
             return ResultDTO.error("TRANSCRIPTION_FAILED");
         }
     }
@@ -209,7 +211,7 @@ public class ChatController {
     public ResultDTO<ChatDTO.MessageDTO> request(HttpSession session,
             @RequestParam long chatId,
             @RequestParam(required = false) String partner) {
-        log.info("Calling request");
+        log.debug("Calling request");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -224,12 +226,12 @@ public class ChatController {
 
             return ResultDTO.success("SEND_COMPLETE", reply);
         } catch (ServiceUnavailableException e) {
-            log.info(e.toString());
+            log.warn("No model configured for chat {}", chatId, e);
             return ResultDTO.error("NOT_AVAILABLE");
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("Reply generation failed for chat {}", chatId, e);
             return ResultDTO.error("GENERATION_FAILED");
         }
     }
@@ -254,7 +256,7 @@ public class ChatController {
                                           @RequestParam String content,
                                           @RequestParam(required = false) String type,
                                           @RequestParam(required = false) String partner) {
-        log.info("Calling say");
+        log.debug("Calling say");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -278,7 +280,7 @@ public class ChatController {
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("say failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
 
@@ -290,10 +292,10 @@ public class ChatController {
         } catch (ServiceUnavailableException e) {
             // The turn still carries what was said: the message was stored before the model was
             // asked, so it must come back either way or the client loses it.
-            log.info(e.toString());
+            log.warn("No model configured for chat {}", chatId, e);
             return ResultDTO.error("NOT_AVAILABLE", new ChatDTO.TurnDTO(sent, null));
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("Reply generation failed for chat {}", chatId, e);
             return ResultDTO.error("GENERATION_FAILED", new ChatDTO.TurnDTO(sent, null));
         }
     }
@@ -303,7 +305,7 @@ public class ChatController {
     // re-authenticates), 502 when the speech service upstream is the one that failed.
     @PostMapping(value = "synthesize", produces = "audio/wav")
     public ResponseEntity<Resource> synthesize(HttpSession session, @RequestParam(value = "text") String text) {
-        log.info("Calling synthesize");
+        log.debug("Calling synthesize");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -314,10 +316,10 @@ public class ChatController {
             return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav")).body(audioStream);
         } catch (ServiceUnavailableException e) {
             // 503 rather than the 502 below: nothing upstream failed, because there is no upstream.
-            log.info(e.toString());
+            log.warn("No speech service configured", e);
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("Speech synthesis failed ({} chars)", text.length(), e);
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
         }
     }
@@ -329,7 +331,7 @@ public class ChatController {
     public ResponseEntity<Resource> speak(HttpSession session,
                                           @RequestParam(value = "text") String text,
                                           @RequestParam(required = false) String partner) {
-        log.info("Calling speak");
+        log.debug("Calling speak");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -347,10 +349,10 @@ public class ChatController {
         } catch (ServiceUnavailableException e) {
             // 503 rather than the 502 below: nothing upstream failed, because there is no upstream —
             // no TTS_URL, or no credentials to reach it with.
-            log.info(e.toString());
+            log.warn("No speech service configured", e);
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("Speech synthesis failed ({} chars)", text.length(), e);
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
         }
 
@@ -367,14 +369,18 @@ public class ChatController {
             // Nothing is re-synthesized. `speech` is fully buffered, so handing it to the response
             // after conversion has read it costs one more pass over a byte array and not one more
             // request to a paid API.
-            log.info(e.toString());
+            //
+            // DEBUG rather than WARN for the same reason: in a deployment with no STS_URL this is
+            // the ordinary path, not a fault. It would fire on every utterance, and the request it
+            // reports on succeeded.
+            log.debug("Voice conversion unavailable, returning unconverted speech", e);
             return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav")).body(speech);
         }
     }
 
     @GetMapping(value = "messages")
     public ResultDTO<List<ChatDTO.MessageDTO>> messages(HttpSession session, @RequestParam long id) {
-        log.info("Calling messages");
+        log.debug("Calling messages");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -386,7 +392,7 @@ public class ChatController {
 
             return ResultDTO.success("QUERY_COMPLETE", chatService.getMessages(id));
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.error("messages failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }

@@ -87,7 +87,7 @@ public class GoogleTokenProvider {
             // credential that will never work — a revoked key, a deleted service account, a clock an
             // hour out — and treating that as retryable means DiaryService.generateAll spends a week
             // of days on an identical refusal and then reports an empty success.
-            log.info("Google would not mint an access token: {}", e.toString());
+            log.warn("Google would not mint an access token", e);
             throw new ServiceUnavailableException(
                     "kindy.google.credentials could not be exchanged for a token (" + e.getMessage() + ")");
         }
@@ -140,7 +140,7 @@ public class GoogleTokenProvider {
             // wrong breaks exactly one of them — whichever one nobody tested with.
             return loaded.createScopedRequired() ? loaded.createScoped(SCOPES) : loaded;
         } catch (IOException e) {
-            log.info("No Google credentials available: {}", e.toString());
+            log.warn("No Google credentials available", e);
             throw new ServiceUnavailableException(
                     "kindy.google.credentials is not configured (" + e.getMessage() + ")");
         }

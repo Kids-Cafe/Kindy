@@ -30,7 +30,7 @@ public class ClassController {
 
     @GetMapping(value = "list")
     public ResultDTO<List<ClassDTO>> list(HttpServletRequest request, HttpSession session) {
-        log.info("Calling list");
+        log.debug("Calling list");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -47,13 +47,14 @@ public class ClassController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", classService.getList(kindergartenId));
         } catch (Exception e) {
+            log.error("list failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "info")
     public ResultDTO<ClassDTO> info(HttpServletRequest request, HttpSession session) {
-        log.info("Calling info");
+        log.debug("Calling info");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -70,13 +71,14 @@ public class ClassController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", classService.getInfo(id));
         } catch (Exception e) {
+            log.error("info failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "create")
     public ResultDTO<Void> create(HttpServletRequest request, HttpSession session) {
-        log.info("Calling create");
+        log.debug("Calling create");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -98,6 +100,7 @@ public class ClassController {
         try {
             int res = classService.create(pDTO);
             if (res == 1) {
+                log.info("Class created in kindergarten {}: {} by {}", kindergartenId, pDTO.getName(), userId);
                 return ResultDTO.success("CREATE_COMPLETE");
             } else {
                 return ResultDTO.error("UNKNOWN_ERROR");
@@ -105,14 +108,14 @@ public class ClassController {
         } catch (DuplicateKeyException e) {
             return ResultDTO.error("DUPLICATE_KEY");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("create failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "rename")
     public ResultDTO<Void> rename(HttpServletRequest request, HttpSession session) {
-        log.info("Calling rename");
+        log.debug("Calling rename");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -136,14 +139,14 @@ public class ClassController {
         } catch (DuplicateKeyException e) {
             return ResultDTO.error("DUPLICATE_KEY");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("rename failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "delete")
     public ResultDTO<Void> delete(HttpServletRequest request, HttpSession session) {
-        log.info("Calling delete");
+        log.debug("Calling delete");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -160,16 +163,17 @@ public class ClassController {
 
         try {
             classService.delete(id);
+            log.info("Class {} deleted by {}", id, userId);
             return ResultDTO.success("DELETE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("delete failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "photo/list")
     public ResultDTO<List<PhotoDTO>> photoList(HttpServletRequest request, HttpSession session) {
-        log.info("Calling photoList");
+        log.debug("Calling photoList");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -186,14 +190,14 @@ public class ClassController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", classService.getPhotos(classId));
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("photoList failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "photo/add")
     public ResultDTO<Void> addPhoto(HttpServletRequest request, HttpSession session, MultipartFile file) {
-        log.info("Calling addPhoto");
+        log.debug("Calling addPhoto");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -216,7 +220,7 @@ public class ClassController {
         try {
             content = file.getBytes();
         } catch (IOException e) {
-            log.info(e.toString());
+            log.warn("Could not read the uploaded file", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
 
@@ -234,7 +238,7 @@ public class ClassController {
             classService.addPhoto(pDTO, content, type);
             return ResultDTO.success("ADD_COMPLETE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("addPhoto failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -263,7 +267,7 @@ public class ClassController {
     @GetMapping(value = "photo/raw")
     public void rawPhoto(HttpServletRequest request, HttpServletResponse response, HttpSession session)
             throws IOException {
-        log.info("Calling rawPhoto");
+        log.debug("Calling rawPhoto");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) {
@@ -320,7 +324,7 @@ public class ClassController {
                 object.stream().transferTo(response.getOutputStream());
             }
         } catch (Exception e) {
-            log.info(e.toString());
+            log.warn("Serving photo {} failed", id, e);
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
     }
@@ -333,7 +337,7 @@ public class ClassController {
     // Caption and theme are set at upload time but editable afterwards; omitting one leaves it alone.
     @PostMapping(value = "photo/edit")
     public ResultDTO<Void> editPhoto(HttpServletRequest request, HttpSession session) {
-        log.info("Calling editPhoto");
+        log.debug("Calling editPhoto");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -358,14 +362,14 @@ public class ClassController {
             classService.updatePhoto(pDTO);
             return ResultDTO.success("EDIT_COMPLETE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("editPhoto failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "photo/remove")
     public ResultDTO<Void> removePhoto(HttpServletRequest request, HttpSession session) {
-        log.info("Calling removePhoto");
+        log.debug("Calling removePhoto");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -383,7 +387,7 @@ public class ClassController {
             classService.removePhoto(id);
             return ResultDTO.success("REMOVE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("removePhoto failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -399,7 +403,7 @@ public class ClassController {
 
     @GetMapping(value = "supply/list")
     public ResultDTO<List<SupplyDTO>> supplyList(HttpServletRequest request, HttpSession session) {
-        log.info("Calling supplyList");
+        log.debug("Calling supplyList");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -416,14 +420,14 @@ public class ClassController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", classService.getSupplies(classId));
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("supplyList failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "supply/info")
     public ResultDTO<SupplyDTO> supplyInfo(HttpServletRequest request, HttpSession session) {
-        log.info("Calling supplyInfo");
+        log.debug("Calling supplyInfo");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -442,13 +446,14 @@ public class ClassController {
 
             return ResultDTO.success("QUERY_COMPLETE", rDTO);
         } catch (Exception e) {
+            log.error("supplyInfo failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "supply/create")
     public ResultDTO<Void> createSupply(HttpServletRequest request, HttpSession session) {
-        log.info("Calling createSupply");
+        log.debug("Calling createSupply");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -476,14 +481,14 @@ public class ClassController {
             classService.createSupply(pDTO);
             return ResultDTO.success("CREATE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("createSupply failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "supply/edit")
     public ResultDTO<Void> editSupply(HttpServletRequest request, HttpSession session) {
-        log.info("Calling editSupply");
+        log.debug("Calling editSupply");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -514,14 +519,14 @@ public class ClassController {
             classService.updateSupply(pDTO);
             return ResultDTO.success("EDIT_COMPLETE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("editSupply failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping("supply/delete")
     public ResultDTO<Void> deleteSupply(HttpServletRequest request, HttpSession session) {
-        log.info("Calling deleteSupply");
+        log.debug("Calling deleteSupply");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -542,14 +547,14 @@ public class ClassController {
             classService.deleteSupply(id);
             return ResultDTO.success("DELETE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("deleteSupply failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "supply/comment/list")
     public ResultDTO<List<SupplyDTO.CommentDTO>> supplyCommentList(HttpServletRequest request, HttpSession session) {
-        log.info("Calling supplyCommentList");
+        log.debug("Calling supplyCommentList");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -568,14 +573,14 @@ public class ClassController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", classService.getSupplyComments(supplyId));
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("supplyCommentList failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "supply/comment/create")
     public ResultDTO<Void> createSupplyComment(HttpServletRequest request, HttpSession session) {
-        log.info("Calling createSupplyComment");
+        log.debug("Calling createSupplyComment");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -602,14 +607,14 @@ public class ClassController {
             classService.createSupplyComment(pDTO);
             return ResultDTO.success("CREATE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("createSupplyComment failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "supply/comment/delete")
     public ResultDTO<Void> deleteSupplyComment(HttpServletRequest request, HttpSession session) {
-        log.info("Calling deleteSupplyComment");
+        log.debug("Calling deleteSupplyComment");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -634,7 +639,7 @@ public class ClassController {
             classService.deleteSupplyComment(id);
             return ResultDTO.success("DELETE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.toString());
+            log.error("deleteSupplyComment failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }

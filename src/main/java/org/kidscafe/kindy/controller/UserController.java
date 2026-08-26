@@ -43,13 +43,13 @@ public class UserController {
 
     @GetMapping(value = "getIdExists")
     public ResultDTO<UserDTO> getIdExists(HttpServletRequest request) throws Exception {
-        log.info("Calling getIdExists");
+        log.debug("Calling getIdExists");
 
         String id = request.getParameter("id");
 
         if (id == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        log.info("id: {}", id);
+        log.debug("id: {}", id);
 
         UserDTO user = userService.getIdExists(id);
 
@@ -60,13 +60,13 @@ public class UserController {
 
     @GetMapping(value = "getEmailExists")
     public ResultDTO<UserDTO> getEmailExists(HttpServletRequest request) throws Exception {
-        log.info("Calling getEmailExists");
+        log.debug("Calling getEmailExists");
 
         String email = request.getParameter("email");
 
         if (email == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        log.info("email: {}", email);
+        log.debug("email check: {} chars", email.length());
 
         UserDTO user = userService.getEmailExists(email);
 
@@ -85,7 +85,7 @@ public class UserController {
      */
     @PostMapping(value = "getVerificationEmail")
     public ResultDTO<UserDTO> getVerificationEmail(HttpServletRequest request, HttpSession session) {
-        log.info("Calling getVerificationEmail");
+        log.debug("Calling getVerificationEmail");
 
         String email = request.getParameter("email");
         if (email == null) return ResultDTO.error("MISSING_PARAMETER");
@@ -101,13 +101,14 @@ public class UserController {
             session.setAttribute("SESSION_VERIFICATION_ATTEMPTS", 0);
             return ResultDTO.success("SENT_CODE");
         } catch(Exception e) {
+            log.warn("getVerificationEmail failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "verifyEmail")
     public ResultDTO<UserDTO> verifyEmail(HttpServletRequest request, HttpSession session) {
-        log.info("Calling verifyEmail");
+        log.debug("Calling verifyEmail");
 
         String email = request.getParameter("email");
         if (email == null) return ResultDTO.error("MISSING_PARAMETER");
@@ -252,19 +253,20 @@ public class UserController {
 
     @PostMapping(value = "create")
     public ResultDTO<Void> create(HttpServletRequest request, HttpSession session) {
-        log.info("Calling create");
+        log.debug("Calling create");
 
         String attemptedId = request.getParameter("id");
         try {
             UserDTO pDTO = this.parseNewUser(request, session, null);
 
-            log.info("User Register Attempt: {}", pDTO.getId());
+            log.debug("User Register Attempt: {}", pDTO.getId());
 
             int res = userService.create(pDTO);
 
-            log.info("User Register Result: {}", res);
+            log.debug("User Register Result: {}", res);
 
             if (res == 1) {
+                log.info("Signup complete: {}", pDTO.getId());
                 return ResultDTO.success("SIGNUP_COMPLETE");
             } else {
                 return ResultDTO.error("UNKNOWN_ERROR");
@@ -276,10 +278,10 @@ public class UserController {
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (DuplicateKeyException e) {
-            log.info("Duplicate ID: {}", attemptedId);
+            log.debug("Duplicate ID: {}", attemptedId);
             return ResultDTO.error("DUPLICATE_ID");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("create failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -295,7 +297,7 @@ public class UserController {
      */
     @PostMapping(value = "child/create")
     public ResultDTO<Void> createChild(HttpServletRequest request, HttpSession session) {
-        log.info("Calling createChild");
+        log.debug("Calling createChild");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -308,10 +310,11 @@ public class UserController {
 
             UserDTO pDTO = this.parseNewUser(request, session, UserDTO.AccountType.CHILD);
 
-            log.info("Child Register Attempt: {} by {}", pDTO.getId(), userId);
+            log.debug("Child Register Attempt: {} by {}", pDTO.getId(), userId);
 
             int res = userService.createChildFor(userId, pDTO);
             if (res != 1) return ResultDTO.error("UNKNOWN_ERROR");
+            log.info("Child account created: {} by {}", pDTO.getId(), userId);
 
             return ResultDTO.success("CREATE_COMPLETE");
         } catch (ParameterException e) {
@@ -321,24 +324,24 @@ public class UserController {
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
         } catch (DuplicateKeyException e) {
-            log.info("Duplicate ID: {}", attemptedId);
+            log.debug("Duplicate ID: {}", attemptedId);
             return ResultDTO.error("DUPLICATE_ID");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.error("createChild failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "login")
     public ResultDTO<UserDTO> login(HttpServletRequest request, HttpSession session) {
-        log.info("Calling login");
+        log.debug("Calling login");
 
         String id = request.getParameter("id");
         if (id == null) return ResultDTO.error("MISSING_PARAMETER");
         String password = request.getParameter("password");
         if (password == null) return ResultDTO.error("MISSING_PARAMETER");
 
-        log.info("Login Attempt: {}", id);
+        log.debug("Login Attempt: {}", id);
 
         try {
             UserDTO rDTO = userService.login(id, password);
@@ -349,17 +352,18 @@ public class UserController {
             session.setMaxInactiveInterval(3600);
             session.setAttribute("SESSION_USER_ID", rDTO.getId());
             session.setAttribute("SESSION_USER_NAME", rDTO.getName());
+            log.info("Login: {}", rDTO.getId());
 
             return ResultDTO.success("SIGNIN_COMPLETE", rDTO);
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.error("login failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "session")
     public ResultDTO<UserDTO> session(HttpSession session) {
-        log.info("Calling session");
+        log.debug("Calling session");
         String id = (String) session.getAttribute("SESSION_USER_ID");
         if (id == null) return ResultDTO.success("NOT_SIGNED_IN", null);
         UserDTO rDTO = UserDTO.fromId(id);
@@ -380,7 +384,7 @@ public class UserController {
      */
     @GetMapping(value = "info")
     public ResultDTO<UserDTO.PlainUserDTO> info(HttpServletRequest request, HttpSession session) throws Exception {
-        log.info("Calling info");
+        log.debug("Calling info");
         String id = (String) session.getAttribute("SESSION_USER_ID");
         if (id == null) return ResultDTO.error("INVALID_ACCESS");
 
@@ -433,7 +437,7 @@ public class UserController {
      */
     @PostMapping(value = "update")
     public ResultDTO<Void> update(HttpServletRequest request, HttpSession session) throws Exception {
-        log.info("Calling update");
+        log.debug("Calling update");
 
         String id = (String) session.getAttribute("SESSION_USER_ID");
         if (id == null) return ResultDTO.error("INVALID_ACCESS");
@@ -460,7 +464,7 @@ public class UserController {
             userService.update(pDTO);
             return ResultDTO.success("UPDATE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.error("update failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -480,7 +484,7 @@ public class UserController {
      */
     @PostMapping(value = "child/update")
     public ResultDTO<Void> updateChild(HttpServletRequest request, HttpSession session) {
-        log.info("Calling updateChild");
+        log.debug("Calling updateChild");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -526,7 +530,7 @@ public class UserController {
             if (userService.updateChildInfo(pDTO) == 0) return ResultDTO.error("USER_NOT_FOUND");
             return ResultDTO.success("UPDATE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.error("updateChild failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -539,7 +543,7 @@ public class UserController {
 
     @PostMapping(value = "onboarding/complete")
     public ResultDTO<Void> completeOnboarding(HttpSession session) throws Exception {
-        log.info("Calling completeOnboarding");
+        log.debug("Calling completeOnboarding");
 
         String id = (String) session.getAttribute("SESSION_USER_ID");
         if (id == null) return ResultDTO.error("INVALID_ACCESS");
@@ -548,21 +552,24 @@ public class UserController {
             userService.completeOnboarding(id);
             return ResultDTO.success("UPDATE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("completeOnboarding failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "logout")
     public ResultDTO<Void> logout(HttpSession session) {
-        log.info("Calling logout");
+        log.debug("Calling logout");
+        // Read before invalidate(): afterwards the attribute is gone and this logs null.
+        String id = (String) session.getAttribute("SESSION_USER_ID");
         session.invalidate();
+        log.info("Logout: {}", id);
         return ResultDTO.success("SIGNOUT_COMPLETE");
     }
 
     @PostMapping(value = "searchId")
     public ResultDTO<UserDTO> searchId(HttpServletRequest request) throws Exception {
-        log.info("Calling searchId");
+        log.debug("Calling searchId");
 
         String name = request.getParameter("name");
         if (name == null) return ResultDTO.error("MISSING_PARAMETER");
@@ -588,7 +595,7 @@ public class UserController {
      */
     @PostMapping(value = "searchPassword")
     public ResultDTO<UserDTO> searchPassword(HttpServletRequest request, HttpSession session) throws Exception {
-        log.info("Calling searchPassword");
+        log.debug("Calling searchPassword");
 
         String id = request.getParameter("id");
         if (id == null) return ResultDTO.error("MISSING_PARAMETER");
@@ -621,7 +628,7 @@ public class UserController {
      */
     @PostMapping(value = "verifyResetCode")
     public ResultDTO<Void> verifyResetCode(HttpServletRequest request, HttpSession session) {
-        log.info("Calling verifyResetCode");
+        log.debug("Calling verifyResetCode");
 
         String code = request.getParameter("code");
         if (code == null) return ResultDTO.error("MISSING_PARAMETER");
@@ -645,18 +652,19 @@ public class UserController {
     /** Step three: set the new password for the account verified above. */
     @PostMapping(value = "newPassword")
     public ResultDTO<Void> newPassword(HttpServletRequest request, HttpSession session) throws Exception {
-        log.info("Calling newPassword");
+        log.debug("Calling newPassword");
 
-        String newPassword = (String) session.getAttribute("NEW_PASSWORD");
+        String targetId = (String) session.getAttribute("NEW_PASSWORD");
 
-        if (newPassword == null || newPassword.isEmpty()) return ResultDTO.error("INVALID_ACCESS");
+        if (targetId == null || targetId.isEmpty()) return ResultDTO.error("INVALID_ACCESS");
 
         String password = request.getParameter("password");
 
         if (password == null) return ResultDTO.error("MISSING_PARAMETER");
         if (password.length() < 8) return ResultDTO.error("INVALID_PARAMETER");
 
-        userService.updatePassword(newPassword, password);
+        userService.updatePassword(targetId, password);
+        log.info("Password reset completed for {}", targetId);
 
         session.removeAttribute("NEW_PASSWORD");
 
@@ -677,7 +685,7 @@ public class UserController {
      */
     @PostMapping(value = "changePassword")
     public ResultDTO<Void> changePassword(HttpServletRequest request, HttpSession session) throws Exception {
-        log.info("Calling changePassword");
+        log.debug("Calling changePassword");
 
         String id = (String) session.getAttribute("SESSION_USER_ID");
         if (id == null) return ResultDTO.error("INVALID_ACCESS");
@@ -691,6 +699,7 @@ public class UserController {
         if (userService.login(id, currentPassword) == null) return ResultDTO.error("SIGNIN_NO_MATCHES");
 
         userService.updatePassword(id, newPassword);
+        log.info("Password changed: {}", id);
 
         return ResultDTO.success("UPDATE_COMPLETE");
     }
@@ -698,7 +707,7 @@ public class UserController {
 
     @PostMapping(value = "newEmail")
     public ResultDTO<Void> newEmail(HttpServletRequest request, HttpSession session) throws Exception {
-        log.info("Calling newEmail");
+        log.debug("Calling newEmail");
 
         String id = (String) session.getAttribute("SESSION_USER_ID");
         if (id == null) return ResultDTO.error("INVALID_ACCESS");
@@ -715,7 +724,7 @@ public class UserController {
 
     @GetMapping(value = "diary/list")
     public ResultDTO<List<DiaryDTO>> diaryList(HttpServletRequest request, HttpSession session) {
-        log.info("Calling diaryList");
+        log.debug("Calling diaryList");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -732,7 +741,7 @@ public class UserController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", userService.getDiaries(userId));
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("diaryList failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -749,7 +758,7 @@ public class UserController {
      */
     @PostMapping(value = "diary/generate")
     public ResultDTO<List<DiaryDTO>> generateDiary(HttpServletRequest request, HttpSession session) {
-        log.info("Calling generateDiary");
+        log.debug("Calling generateDiary");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -775,19 +784,19 @@ public class UserController {
         } catch (ServiceUnavailableException e) {
             // No model configured, as opposed to one that is down. Both leave the diary unwritten,
             // but only one of them is worth retrying, and the client cannot tell without this.
-            log.info(e.toString());
+            log.warn("No model configured for diary generation", e);
             return ResultDTO.error("NOT_AVAILABLE");
         } catch (Exception e) {
             // The model is an external service that can be slow or down. That is an ordinary
             // failure here, and the client needs to tell it apart from "nothing to write".
-            log.info(e.toString());
+            log.warn("Diary generation failed for {} on {}", userId, date, e);
             return ResultDTO.error("GENERATION_FAILED");
         }
     }
 
     @GetMapping(value = "diary/info")
     public ResultDTO<DiaryDTO> diaryInfo(HttpServletRequest request, HttpSession session) {
-        log.info("Calling diaryInfo");
+        log.debug("Calling diaryInfo");
 
         String sessionUserId = (String) session.getAttribute("SESSION_USER_ID");
         if (sessionUserId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -804,14 +813,14 @@ public class UserController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", userService.getDiaryInfo(userId, date));
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("diaryInfo failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "diary/create")
     public ResultDTO<Void> createDiary(HttpServletRequest request, HttpSession session) {
-        log.info("Calling createDiary");
+        log.debug("Calling createDiary");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -826,14 +835,14 @@ public class UserController {
             userService.createDiary(pDTO);
             return ResultDTO.success("CREATE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.error("createDiary failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "diary/modify")
     public ResultDTO<Void> modifyDiary(HttpServletRequest request, HttpSession session) {
-        log.info("Calling modifyDiary");
+        log.debug("Calling modifyDiary");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -848,14 +857,14 @@ public class UserController {
             userService.updateDiary(pDTO);
             return ResultDTO.success("UPDATE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("modifyDiary failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "diary/delete")
     public ResultDTO<Void> deleteDiary(HttpServletRequest request, HttpSession session) {
-        log.info("Calling deleteDiary");
+        log.debug("Calling deleteDiary");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -866,7 +875,7 @@ public class UserController {
             userService.deleteDiary(userId, date);
             return ResultDTO.success("DELETE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("deleteDiary failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -908,7 +917,7 @@ public class UserController {
     // Invite-flow lookup by partial login id or name. Public fields only, capped server-side.
     @GetMapping(value = "search")
     public ResultDTO<List<UserDTO.PlainUserDTO>> search(HttpServletRequest request, HttpSession session) {
-        log.info("Calling search");
+        log.debug("Calling search");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -921,14 +930,14 @@ public class UserController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", userService.searchUsers(q));
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("search failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "note/list")
     public ResultDTO<List<ParentNoteDTO>> noteList(HttpServletRequest request, HttpSession session) {
-        log.info("Calling noteList");
+        log.debug("Calling noteList");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -941,14 +950,14 @@ public class UserController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", userService.getParentNotes(childId));
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("noteList failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "note/create")
     public ResultDTO<Void> createNote(HttpServletRequest request, HttpSession session) {
-        log.info("Calling createNote");
+        log.debug("Calling createNote");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -967,14 +976,14 @@ public class UserController {
             userService.createParentNote(pDTO);
             return ResultDTO.success("CREATE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("createNote failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "note/delete")
     public ResultDTO<Void> deleteNote(HttpServletRequest request, HttpSession session) {
-        log.info("Calling deleteNote");
+        log.debug("Calling deleteNote");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -996,14 +1005,14 @@ public class UserController {
             userService.deleteParentNote(id);
             return ResultDTO.success("DELETE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("deleteNote failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "note/comment/list")
     public ResultDTO<List<ParentNoteDTO.CommentDTO>> noteCommentList(HttpServletRequest request, HttpSession session) {
-        log.info("Calling noteCommentList");
+        log.debug("Calling noteCommentList");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1020,14 +1029,14 @@ public class UserController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", userService.getParentNoteComments(noteId));
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("noteCommentList failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "note/comment/create")
     public ResultDTO<Void> createNoteComment(HttpServletRequest request, HttpSession session) {
-        log.info("Calling createNoteComment");
+        log.debug("Calling createNoteComment");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1051,14 +1060,14 @@ public class UserController {
             userService.createParentNoteComment(pDTO);
             return ResultDTO.success("CREATE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("createNoteComment failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "note/comment/delete")
     public ResultDTO<Void> deleteNoteComment(HttpServletRequest request, HttpSession session) {
-        log.info("Calling deleteNoteComment");
+        log.debug("Calling deleteNoteComment");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1083,7 +1092,7 @@ public class UserController {
             userService.deleteParentNoteComment(id);
             return ResultDTO.success("DELETE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("deleteNoteComment failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -1097,7 +1106,7 @@ public class UserController {
     // One row per (child, category); `data` is the category's JSON blob, stored verbatim.
     @GetMapping(value = "report/list")
     public ResultDTO<List<ReportDTO>> reportList(HttpServletRequest request, HttpSession session) {
-        log.info("Calling reportList");
+        log.debug("Calling reportList");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1110,14 +1119,14 @@ public class UserController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", userService.getReports(childId));
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("reportList failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "report/save")
     public ResultDTO<Void> saveReport(HttpServletRequest request, HttpSession session) {
-        log.info("Calling saveReport");
+        log.debug("Calling saveReport");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1141,7 +1150,7 @@ public class UserController {
             userService.saveReport(pDTO);
             return ResultDTO.success("SAVE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("saveReport failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -1158,7 +1167,7 @@ public class UserController {
      */
     @PostMapping(value = "report/generate")
     public ResultDTO<List<ReportDTO>> generateReport(HttpServletRequest request, HttpSession session) {
-        log.info("Calling generateReport");
+        log.debug("Calling generateReport");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1194,19 +1203,19 @@ public class UserController {
         } catch (ServiceUnavailableException e) {
             // No model configured, as opposed to one that is down. Both leave the report unwritten,
             // but only one of them is worth retrying, and the client cannot tell without this.
-            log.info(e.toString());
+            log.warn("No model configured for report generation", e);
             return ResultDTO.error("NOT_AVAILABLE");
         } catch (Exception e) {
             // The model is an external service that can be slow or down. That is an ordinary
             // failure here, and the client needs to tell it apart from "nothing to write".
-            log.info(e.toString());
+            log.warn("Report generation failed for {} category={}", childId, category, e);
             return ResultDTO.error("GENERATION_FAILED");
         }
     }
 
     @GetMapping(value = "invite/list")
     public ResultDTO<List<InviteDTO>> inviteList(HttpSession session) {
-        log.info("Calling inviteList");
+        log.debug("Calling inviteList");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1214,14 +1223,14 @@ public class UserController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", kindergartenService.getUserInvites(userId));
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("inviteList failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @GetMapping(value = "family/list")
     public ResultDTO<List<FamilyDTO>> familyList(HttpSession session) {
-        log.info("Calling familyList");
+        log.debug("Calling familyList");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1229,7 +1238,7 @@ public class UserController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", userService.getFamilies(userId));
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("familyList failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -1244,7 +1253,7 @@ public class UserController {
      */
     @GetMapping(value = "family/parents")
     public ResultDTO<List<UserDTO.PlainUserDTO>> familyParents(HttpServletRequest request, HttpSession session) {
-        log.info("Calling familyParents");
+        log.debug("Calling familyParents");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1257,7 +1266,7 @@ public class UserController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", userService.getGuardians(childId));
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("familyParents failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -1274,14 +1283,14 @@ public class UserController {
      */
     @PostMapping(value = "family/add")
     public ResultDTO<Void> addFamily() {
-        log.info("Calling addFamily");
+        log.debug("Calling addFamily");
         return ResultDTO.error("NOT_AVAILABLE");
     }
 
     /** Pending link requests this account has standing in, each flagged with whether it may answer. */
     @GetMapping(value = "family/invite/list")
     public ResultDTO<List<FamilyInviteDTO>> familyInviteList(HttpSession session) {
-        log.info("Calling familyInviteList");
+        log.debug("Calling familyInviteList");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1289,7 +1298,7 @@ public class UserController {
         try {
             return ResultDTO.success("QUERY_COMPLETE", userService.getFamilyInvites(userId));
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.error("familyInviteList failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
@@ -1301,7 +1310,7 @@ public class UserController {
      */
     @PostMapping(value = "family/invite")
     public ResultDTO<Void> inviteFamily(HttpServletRequest request, HttpSession session) {
-        log.info("Calling inviteFamily");
+        log.debug("Calling inviteFamily");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1316,6 +1325,7 @@ public class UserController {
 
         try {
             userService.requestFamilyLink(userId, parent, child);
+            log.info("Family link requested: parent={} child={} by {}", parent, child, userId);
             return ResultDTO.success("INVITE_COMPLETE");
         } catch (IllegalArgumentException e) {
             return ResultDTO.error("INVALID_PARAMETER");
@@ -1325,26 +1335,26 @@ public class UserController {
             // The pending-only unique key on T_FAMILY_INVITE caught a second live request.
             return ResultDTO.error("DUPLICATE_REQUEST");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("inviteFamily failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }
 
     @PostMapping(value = "family/invite/accept")
     public ResultDTO<Void> acceptFamilyInvite(HttpServletRequest request, HttpSession session) {
-        log.info("Calling acceptFamilyInvite");
+        log.debug("Calling acceptFamilyInvite");
         return this.respondToFamilyInvite(request, session, "accept");
     }
 
     @PostMapping(value = "family/invite/reject")
     public ResultDTO<Void> rejectFamilyInvite(HttpServletRequest request, HttpSession session) {
-        log.info("Calling rejectFamilyInvite");
+        log.debug("Calling rejectFamilyInvite");
         return this.respondToFamilyInvite(request, session, "reject");
     }
 
     @PostMapping(value = "family/invite/cancel")
     public ResultDTO<Void> cancelFamilyInvite(HttpServletRequest request, HttpSession session) {
-        log.info("Calling cancelFamilyInvite");
+        log.debug("Calling cancelFamilyInvite");
         return this.respondToFamilyInvite(request, session, "cancel");
     }
 
@@ -1371,6 +1381,7 @@ public class UserController {
                 case "reject" -> userService.rejectFamilyLink(id, userId);
                 default -> userService.cancelFamilyLink(id, userId);
             }
+            log.info("Family invite {}: id={} by {}", action, id, userId);
         } catch (IllegalAccessException e) {
             return ResultDTO.error("INVALID_ACCESS");
         } catch (IllegalStateException e) {
@@ -1378,7 +1389,7 @@ public class UserController {
         } catch (DuplicateKeyException e) {
             return ResultDTO.error("ALREADY_LINKED");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("respondToFamilyInvite failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
 
@@ -1399,7 +1410,7 @@ public class UserController {
      */
     @PostMapping(value = "family/remove")
     public ResultDTO<Void> removeFamily(HttpServletRequest request, HttpSession session) {
-        log.info("Calling removeFamily");
+        log.debug("Calling removeFamily");
 
         String userId = (String) session.getAttribute("SESSION_USER_ID");
         if (userId == null) return ResultDTO.error("INVALID_ACCESS");
@@ -1413,9 +1424,10 @@ public class UserController {
 
         try {
             userService.removeFamily(parent, child);
+            log.info("Family link removed: parent={} child={}", parent, child);
             return ResultDTO.success("DELETE_COMPLETE");
         } catch (Exception e) {
-            log.info(e.getMessage());
+            log.warn("removeFamily failed", e);
             return ResultDTO.error("UNKNOWN_ERROR");
         }
     }

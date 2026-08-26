@@ -1,7 +1,6 @@
 package org.kidscafe.kindy.service.impl;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.kidscafe.kindy.config.StorageProperties;
 import org.kidscafe.kindy.service.IStorageService;
 import software.amazon.awssdk.core.ResponseInputStream;
@@ -23,7 +22,6 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
  * <p>Constructed by {@code StorageConfig} rather than annotated {@code @Service}: which
  * implementation exists is a configuration decision, not a scanning one.
  */
-@Slf4j
 @RequiredArgsConstructor
 public class S3StorageService implements IStorageService {
     private final S3Client s3;

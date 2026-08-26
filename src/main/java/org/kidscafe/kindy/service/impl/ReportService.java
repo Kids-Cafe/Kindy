@@ -234,11 +234,11 @@ class ReportService implements IReportService {
 
     @Override
     public List<ReportDTO> generateAll(String childId, boolean force) throws Exception {
-        log.info("Calling generateAll for {}", childId);
+        log.debug("Calling generateAll for {}", childId);
 
         Evidence evidence = this.gather(childId);
         if (!evidence.isEnough()) {
-            log.info("not enough to report on for {}", childId);
+            log.debug("not enough to report on for {}", childId);
             return List.of();
         }
 
@@ -254,7 +254,7 @@ class ReportService implements IReportService {
                 // identically, and an empty list returned as success reads as "nothing to report".
                 throw e;
             } catch (Exception e) {
-                log.info("report generation failed for {} on {}: {}", childId, category, e.toString());
+                log.warn("Report generation failed for {} category={}", childId, category, e);
             }
         }
 
@@ -263,13 +263,13 @@ class ReportService implements IReportService {
 
     @Override
     public ReportDTO generate(String childId, ReportDTO.Category category, boolean force) throws Exception {
-        log.info("Calling generate for {} on {}", childId, category);
+        log.debug("Calling generate for {} on {}", childId, category);
 
         Evidence evidence = this.gather(childId);
         // `force` does not lower the floor. It means "write this one again even though it is
         // current", not "write one out of nothing" — there is no report to be had either way.
         if (!evidence.isEnough()) {
-            log.info("not enough to report on for {}", childId);
+            log.debug("not enough to report on for {}", childId);
             return null;
         }
 
@@ -292,7 +292,7 @@ class ReportService implements IReportService {
 
         String data = this.parse(category, answer, existing);
         if (data == null) {
-            log.info("could not read a {} report out of: {}", category, answer);
+            log.debug("could not read a {} report out of {} chars", category, answer == null ? 0 : answer.length());
             return null;
         }
 
@@ -420,7 +420,7 @@ class ReportService implements IReportService {
         try {
             node = MAPPER.readTree(json);
         } catch (Exception e) {
-            log.info("report answer was not JSON: {}", e.toString());
+            log.debug("report answer was not JSON", e);
             return null;
         }
         if (!node.isObject()) return null;

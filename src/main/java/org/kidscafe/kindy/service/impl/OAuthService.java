@@ -88,7 +88,7 @@ public class OAuthService implements IOAuthService {
         if (accessToken == null) {
             // The body would carry the provider's error, but it can also echo the request — log the
             // key set only, never the values.
-            log.info("Token exchange for {} returned no access_token (keys={})", provider, tokenResponse.keySet());
+            log.warn("Token exchange for {} returned no access_token (keys={})", provider, tokenResponse.keySet());
             throw new IllegalStateException("no access_token");
         }
 

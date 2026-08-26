@@ -101,7 +101,7 @@ class DiaryService implements IDiaryService {
 
     @Override
     public List<DiaryDTO> generateAll(String userId) throws Exception {
-        log.info("Calling generateAll for {}", userId);
+        log.debug("Calling generateAll for {}", userId);
 
         List<DiaryDTO> written = new ArrayList<>();
         // Counted as attempts, not successes: the cap is there to bound how many model calls one
@@ -136,12 +136,12 @@ class DiaryService implements IDiaryService {
                 // nothing worth writing about.
                 throw e;
             } catch (Exception e) {
-                log.info("diary generation failed for {} on {}: {}", userId, day.getDate(), e.toString());
+                log.warn("Diary generation failed for {} on {}", userId, day.getDate(), e);
             }
         }
 
         if (skippedForCap > 0) {
-            log.info("{} more day(s) left for the next run for {}", skippedForCap, userId);
+            log.debug("{} more day(s) left for the next run for {}", skippedForCap, userId);
         }
 
         return written;
@@ -207,13 +207,13 @@ class DiaryService implements IDiaryService {
 
     @Override
     public DiaryDTO generate(String userId, String date, boolean force) throws Exception {
-        log.info("Calling generate for {} on {}", userId, date);
+        log.debug("Calling generate for {} on {}", userId, date);
 
         DiaryDTO existing = userService.getDiaryInfo(userId, date);
 
         List<ChatDTO.MessageDTO> messages = chatService.getPartnerDay(userId, date);
         if (!this.hasEnough(messages)) {
-            log.info("not enough conversation on {} for {}", date, userId);
+            log.debug("not enough conversation on {} for {}", date, userId);
             return null;
         }
 
@@ -233,7 +233,7 @@ class DiaryService implements IDiaryService {
 
         DiaryDTO pDTO = this.parse(answer);
         if (pDTO == null) {
-            log.info("could not read a diary out of: {}", answer);
+            log.debug("could not read a diary out of {} chars", answer == null ? 0 : answer.length());
             return null;
         }
 
@@ -299,7 +299,7 @@ class DiaryService implements IDiaryService {
         try {
             node = MAPPER.readTree(json);
         } catch (Exception e) {
-            log.info("diary answer was not JSON: {}", e.toString());
+            log.debug("diary answer was not JSON", e);
             return null;
         }
         if (!node.isObject()) return null;
@@ -346,7 +346,7 @@ class DiaryService implements IDiaryService {
             if (m.name().equalsIgnoreCase(value.trim())) return m;
         }
 
-        log.info("unknown mood from the model: {}", value);
+        log.debug("unknown mood from the model: {}", value);
 
         return DiaryDTO.Mood.calm;
     }

@@ -52,14 +52,14 @@ public class UserService implements IUserService {
 
     @Override
     public UserDTO getIdExists(String id) throws Exception {
-        log.info("Calling getIdExists");
+        log.debug("Calling getIdExists");
 
         return userMapper.getIdExists(UserDTO.fromId(id));
     }
 
     @Override
     public UserDTO getEmailExists(String email) throws Exception {
-        log.info("Calling getEmailExists");
+        log.debug("Calling getEmailExists");
 
         UserDTO pDTO = new UserDTO();
         pDTO.setEmail(email);
@@ -69,7 +69,7 @@ public class UserService implements IUserService {
 
     @Override
     public String sendVerificationCode(String email) throws Exception {
-        log.info("Calling sendVerificationCode");
+        log.debug("Calling sendVerificationCode");
 
         // SecureRandom, not ThreadLocalRandom: this code is a credential. ThreadLocalRandom is a
         // fast statistical generator whose output is predictable from enough observed values, and
@@ -86,7 +86,7 @@ public class UserService implements IUserService {
             mailSender.send(message);
             return code;
         } catch (Exception e) {
-            log.warn(e.getMessage());
+            log.warn("Verification mail could not be sent", e);
         }
         return null;
     }
@@ -94,7 +94,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int create(UserDTO pDTO) throws Exception {
-        log.info("Calling create");
+        log.debug("Calling create");
 
         if (pDTO.getId().length() < 4 || pDTO.getId().length() > 20) throw new IllegalArgumentException();
         if (pDTO.getName() == null) throw new NullPointerException();
@@ -121,7 +121,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int createChildFor(String parentId, UserDTO child) throws Exception {
-        log.info("Calling createChildFor");
+        log.debug("Calling createChildFor");
 
         if (child.getAccountType() != UserDTO.AccountType.CHILD) throw new IllegalArgumentException();
 
@@ -133,7 +133,7 @@ public class UserService implements IUserService {
 
     @Override
     public UserDTO login(String id, String password) throws Exception {
-        log.info("Calling login");
+        log.debug("Calling login");
 
         UserDTO rDTO = userMapper.getLogin(UserDTO.fromId(id));
 
@@ -149,7 +149,7 @@ public class UserService implements IUserService {
 
     @Override
     public UserDTO getInfo(String id) throws Exception {
-        log.info("Calling getInfo");
+        log.debug("Calling getInfo");
 
         return userMapper.getInfo(UserDTO.fromId(id));
     }
@@ -157,7 +157,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int update(UserDTO pDTO) throws Exception {
-        log.info("Calling update");
+        log.debug("Calling update");
 
         // updateInfo builds its SET clause from whichever fields arrived. With none of them the
         // clause is empty and MyBatis emits "UPDATE T_USER SET WHERE ID = ?", which is not valid
@@ -172,7 +172,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int updateChildInfo(UserDTO pDTO) throws Exception {
-        log.info("Calling updateChildInfo");
+        log.debug("Calling updateChildInfo");
 
         // Same empty-SET hazard as update(), one statement over.
         if (pDTO.getName() == null && pDTO.getPhone() == null && pDTO.getBirthDate() == null
@@ -184,7 +184,7 @@ public class UserService implements IUserService {
 
     @Override
     public UserDTO getId(String name, String email) throws Exception {
-        log.info("Calling getId");
+        log.debug("Calling getId");
 
         UserDTO pDTO = new UserDTO();
         pDTO.setName(name);
@@ -195,7 +195,7 @@ public class UserService implements IUserService {
 
     @Override
     public UserDTO getId(String name, String email, String id) throws Exception {
-        log.info("Calling getId");
+        log.debug("Calling getId");
 
         UserDTO pDTO = UserDTO.fromId(id);
         pDTO.setName(name);
@@ -207,7 +207,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int updatePassword(String id, String password) throws Exception {
-        log.info("Calling newPassword");
+        log.debug("Calling newPassword");
 
         byte[] salt = encryptUtil.getSecureSalt();
         UserDTO pDTO = UserDTO.fromId(id);
@@ -220,7 +220,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int updateEmail(String id, String email, String password) throws Exception {
-        log.info("Calling updateEmail");
+        log.debug("Calling updateEmail");
 
         UserDTO pDTO = this.login(id, password);
         if (pDTO == null) throw new IllegalArgumentException();
@@ -232,7 +232,7 @@ public class UserService implements IUserService {
 
     @Override
     public List<DiaryDTO> getDiaries(String id) throws Exception {
-        log.info("Calling getDiaries");
+        log.debug("Calling getDiaries");
 
         DiaryDTO pDTO = new DiaryDTO();
         pDTO.setUserId(id);
@@ -242,7 +242,7 @@ public class UserService implements IUserService {
 
     @Override
     public DiaryDTO getDiaryInfo(String id, String date) throws Exception {
-        log.info("Calling getDiaryInfo");
+        log.debug("Calling getDiaryInfo");
 
         DiaryDTO pDTO = new DiaryDTO();
         pDTO.setUserId(id);
@@ -254,7 +254,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int createDiary(DiaryDTO pDTO) throws Exception {
-        log.info("Calling createDiary");
+        log.debug("Calling createDiary");
 
         int result = diaryMapper.insert(pDTO);
         this.replaceDiaryTags(pDTO);
@@ -265,7 +265,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int updateDiary(DiaryDTO pDTO) throws Exception {
-        log.info("Calling updateDiary");
+        log.debug("Calling updateDiary");
 
         int result = diaryMapper.update(pDTO);
 
@@ -293,7 +293,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int deleteDiary(String id, String date) throws Exception {
-        log.info("Calling deleteDiary");
+        log.debug("Calling deleteDiary");
 
         DiaryDTO pDTO = new DiaryDTO();
         pDTO.setUserId(id);
@@ -307,7 +307,7 @@ public class UserService implements IUserService {
 
     @Override
     public List<UserDTO.PlainUserDTO> searchUsers(String q) throws Exception {
-        log.info("Calling searchUsers");
+        log.debug("Calling searchUsers");
 
         return userMapper.searchUsers(q).stream()
                 .map(u -> new UserDTO.PlainUserDTO(u.getId(), u.getName(), null, null, null, null, null,
@@ -317,7 +317,7 @@ public class UserService implements IUserService {
 
     @Override
     public List<ParentNoteDTO> getParentNotes(String childId) throws Exception {
-        log.info("Calling getParentNotes");
+        log.debug("Calling getParentNotes");
 
         ParentNoteDTO pDTO = new ParentNoteDTO();
         pDTO.setChildId(childId);
@@ -327,7 +327,7 @@ public class UserService implements IUserService {
 
     @Override
     public ParentNoteDTO getParentNote(long id) throws Exception {
-        log.info("Calling getParentNote");
+        log.debug("Calling getParentNote");
 
         ParentNoteDTO pDTO = new ParentNoteDTO();
         pDTO.setId(id);
@@ -338,7 +338,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int createParentNote(ParentNoteDTO pDTO) throws Exception {
-        log.info("Calling createParentNote");
+        log.debug("Calling createParentNote");
 
         return parentNoteMapper.insert(pDTO);
     }
@@ -346,7 +346,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int deleteParentNote(long id) throws Exception {
-        log.info("Calling deleteParentNote");
+        log.debug("Calling deleteParentNote");
 
         ParentNoteDTO pDTO = new ParentNoteDTO();
         pDTO.setId(id);
@@ -356,7 +356,7 @@ public class UserService implements IUserService {
 
     @Override
     public List<ParentNoteDTO.CommentDTO> getParentNoteComments(long noteId) throws Exception {
-        log.info("Calling getParentNoteComments");
+        log.debug("Calling getParentNoteComments");
 
         ParentNoteDTO.CommentDTO pDTO = new ParentNoteDTO.CommentDTO();
         pDTO.setNoteId(noteId);
@@ -366,7 +366,7 @@ public class UserService implements IUserService {
 
     @Override
     public ParentNoteDTO.CommentDTO getParentNoteComment(long id) throws Exception {
-        log.info("Calling getParentNoteComment");
+        log.debug("Calling getParentNoteComment");
 
         ParentNoteDTO.CommentDTO pDTO = new ParentNoteDTO.CommentDTO();
         pDTO.setId(id);
@@ -377,7 +377,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int createParentNoteComment(ParentNoteDTO.CommentDTO pDTO) throws Exception {
-        log.info("Calling createParentNoteComment");
+        log.debug("Calling createParentNoteComment");
 
         return parentNoteMapper.insertComment(pDTO);
     }
@@ -385,7 +385,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int deleteParentNoteComment(long id) throws Exception {
-        log.info("Calling deleteParentNoteComment");
+        log.debug("Calling deleteParentNoteComment");
 
         ParentNoteDTO.CommentDTO pDTO = new ParentNoteDTO.CommentDTO();
         pDTO.setId(id);
@@ -395,7 +395,7 @@ public class UserService implements IUserService {
 
     @Override
     public List<ReportDTO> getReports(String childId) throws Exception {
-        log.info("Calling getReports");
+        log.debug("Calling getReports");
 
         ReportDTO pDTO = new ReportDTO();
         pDTO.setChildId(childId);
@@ -405,7 +405,7 @@ public class UserService implements IUserService {
 
     @Override
     public ReportDTO getReportInfo(String childId, ReportDTO.Category category) throws Exception {
-        log.info("Calling getReportInfo");
+        log.debug("Calling getReportInfo");
 
         ReportDTO pDTO = new ReportDTO();
         pDTO.setChildId(childId);
@@ -416,7 +416,7 @@ public class UserService implements IUserService {
 
     @Override
     public ReportDTO getReportById(long id) throws Exception {
-        log.info("Calling getReportById");
+        log.debug("Calling getReportById");
 
         return reportMapper.selectById(id);
     }
@@ -424,14 +424,14 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int saveReport(ReportDTO pDTO) throws Exception {
-        log.info("Calling saveReport");
+        log.debug("Calling saveReport");
 
         return reportMapper.insert(pDTO);
     }
 
     @Override
     public List<FamilyDTO> getFamilies(String id) throws Exception {
-        log.info("Calling GetFamilies");
+        log.debug("Calling GetFamilies");
 
         FamilyDTO pDTO = new FamilyDTO();
         pDTO.setParent(id);
@@ -447,7 +447,7 @@ public class UserService implements IUserService {
      */
     @Override
     public List<UserDTO.PlainUserDTO> getGuardians(String childId) throws Exception {
-        log.info("Calling getGuardians");
+        log.debug("Calling getGuardians");
 
         FamilyDTO query = new FamilyDTO();
         query.setChild(childId);
@@ -466,7 +466,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int addFamily(String parent, String child) throws Exception {
-        log.info("Calling addFamily");
+        log.debug("Calling addFamily");
 
         FamilyDTO pDTO = new FamilyDTO();
         pDTO.setParent(parent);
@@ -479,7 +479,7 @@ public class UserService implements IUserService {
 
     @Override
     public List<FamilyInviteDTO> getFamilyInvites(String userId) throws Exception {
-        log.info("Calling getFamilyInvites");
+        log.debug("Calling getFamilyInvites");
 
         List<FamilyInviteDTO> invites = familyInviteMapper.getListForUser(userId);
         for (FamilyInviteDTO invite : invites) {
@@ -529,7 +529,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int requestFamilyLink(String requesterId, String parent, String child) throws Exception {
-        log.info("Calling requestFamilyLink");
+        log.debug("Calling requestFamilyLink");
 
         if (parent.equals(child)) throw new IllegalArgumentException();
 
@@ -557,7 +557,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int acceptFamilyLink(long id, String userId) throws Exception {
-        log.info("Calling acceptFamilyLink");
+        log.debug("Calling acceptFamilyLink");
 
         FamilyInviteDTO invite = this.pendingFamilyInvite(id);
         if (!this.resolveFamilyApprovers(invite).contains(userId)) throw new IllegalAccessException();
@@ -576,7 +576,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int rejectFamilyLink(long id, String userId) throws Exception {
-        log.info("Calling rejectFamilyLink");
+        log.debug("Calling rejectFamilyLink");
 
         FamilyInviteDTO invite = this.pendingFamilyInvite(id);
         if (!this.resolveFamilyApprovers(invite).contains(userId)) throw new IllegalAccessException();
@@ -588,7 +588,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int cancelFamilyLink(long id, String userId) throws Exception {
-        log.info("Calling cancelFamilyLink");
+        log.debug("Calling cancelFamilyLink");
 
         FamilyInviteDTO invite = this.pendingFamilyInvite(id);
         if (!userId.equals(invite.getRequesterId())) throw new IllegalAccessException();
@@ -607,7 +607,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int removeFamily(String parent, String child) throws Exception {
-        log.info("Calling removeFamily");
+        log.debug("Calling removeFamily");
 
         FamilyDTO pDTO = new FamilyDTO();
         pDTO.setParent(parent);
@@ -619,7 +619,7 @@ public class UserService implements IUserService {
     @Transactional
     @Override
     public int completeOnboarding(String id) throws Exception {
-        log.info("Calling completeOnboarding");
+        log.debug("Calling completeOnboarding");
 
         return userMapper.completeOnboarding(UserDTO.fromId(id));
     }
